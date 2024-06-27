@@ -1,0 +1,10 @@
+*.exe
+*.o
+*.sublime-project
+*.sublime-workspace
+*.res
+*build
+*.cache
+*.vscode
+*CMakeLists.*
+*.bat
