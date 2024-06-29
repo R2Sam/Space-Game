@@ -2,7 +2,7 @@
 
 int main ()
 {
-	Game game(1080, 720, "Template");
+	Game game(1080, 720, "Space Game");
 	
 	game.Run();
 }

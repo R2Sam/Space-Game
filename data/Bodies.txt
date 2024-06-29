@@ -1,0 +1,3 @@
+--Name:Earth--CelestialBody:1--Position:0,0,0--Velocity:0,0,0--Mass:5.97e24--Radius:6371---
+--Name:Moon--CelestialBody:1--Position:384400,0,0--Velocity:0,0,3683--Mass:7.342e22--1737---
+--Name:Craft--CelestialBody:0--Position:6771,0,0--Velocity:0,0,7.672--Mass:420--Radius:0---

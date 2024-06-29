@@ -2,6 +2,8 @@
 #include "Services.h"
 #include "EventHandler.h"
 
+#include "OrbitalSimulation.h"
+
 #include <string>
 
 GameStateHandler::GameStateHandler(Services* servicesIn) : _services(servicesIn)
@@ -17,7 +19,8 @@ GameStateHandler::~GameStateHandler()
 
 void GameStateHandler::Init()
 {
-	
+	orbitalSimulation = std::make_unique<OrbitalSimulation>(_services, 1, true);
+	orbitalSimulation->LoadBodiesFromFile("../data/bodies.txt");
 }
 
 void GameStateHandler::AddSelfAsListener()
@@ -33,5 +36,5 @@ void GameStateHandler::OnEvent(std::shared_ptr<const Event>& event)
 
 void GameStateHandler::Update()
 {
-	
+	orbitalSimulation->Update();
 }

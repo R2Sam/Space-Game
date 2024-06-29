@@ -3,6 +3,8 @@
 
 class Services;
 
+class OrbitalSimulation;
+
 class GameStateHandler : public EventListener
 {
 private:
@@ -14,6 +16,9 @@ private:
 	void OnEvent(std::shared_ptr<const Event>& event) override;
 
 public:
+
+	// Sim
+	std::unique_ptr<OrbitalSimulation> orbitalSimulation;
 
 	GameStateHandler(Services* servicesIn);
 	~GameStateHandler();
