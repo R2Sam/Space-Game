@@ -52,7 +52,7 @@ private:
 	// Calculate acceleration and then numerically integrate
 	Vector3d CalculateAcceleration(const Vector3d& r, const double& M) const;
 	Vector3d CalculateTotalAcceleration(const Vector3d& position, const std::vector<std::shared_ptr<OrbitalBody>>& bodies) const;
-	void RungeKutta(OrbitalBody& body, const std::vector<std::shared_ptr<OrbitalBody>>& bodies, const double& h);
+	void RungeKutta(OrbitalBody* body, const std::vector<std::shared_ptr<OrbitalBody>>& bodies, const double& h);
 
 	void UpdateCelestialOrbits(const double& dt, std::vector<std::shared_ptr<OrbitalBody>>& celestialBodies);
 	void UpdateNonCelestialOrbits(const double& dt, std::vector<std::shared_ptr<OrbitalBody>>& celestialBodies, std::vector<std::shared_ptr<OrbitalBody>>& nonCelestialBodies);

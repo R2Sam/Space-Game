@@ -6,8 +6,13 @@
 
 #include <unordered_set>
 #include <unordered_map>
+#include <vector>
+#include <string>
+#include <memory>
 
 class Services;
+
+class OrbitalBody;
 
 class MainLevelScene : public Scene, public EventListener
 {
@@ -28,6 +33,10 @@ private:
 
 	std::unordered_map<int, bool> _mouseKeys;
 	std::unordered_map<int, bool> _mouseKeysDown;
+
+	// TEST SIM
+	std::vector<std::weak_ptr<OrbitalBody>> _planets;
+	std::vector<std::weak_ptr<OrbitalBody>> _craft;
 
 	void Init() override;
 

@@ -12,12 +12,12 @@
 #include <cstring>
 
 // Unit in m
-const double G = 6.674e-11 / 1e9;
+const double G = 6.674e-11;
 
 // Unit in Km
-const double GKm = 6.674e-11 / 1e9;
+const double GKm = 6.674e-20;
 
-const unsigned int maxSpeed = 10000;
+const unsigned int maxSpeed = 100000;
 
 OrbitalSimulation::OrbitalSimulation(Services* servicesIn, const double& timeStep, const bool& km) : _services(servicesIn), _dt(timeStep), _km(km)
 {
@@ -81,37 +81,37 @@ Vector3d OrbitalSimulation::CalculateTotalAcceleration(const Vector3d& position,
 	return acceleration;
 }
 
-void OrbitalSimulation::RungeKutta(OrbitalBody& body, const std::vector<std::shared_ptr<OrbitalBody>>& bodies, const double& h)
+void OrbitalSimulation::RungeKutta(OrbitalBody* body, const std::vector<std::shared_ptr<OrbitalBody>>& bodies, const double& h)
 {
     Vector3d k1v, k2v, k3v, k4v;
     Vector3d k1r, k2r, k3r, k4r;
 
-    k1v = CalculateTotalAcceleration(body.position, bodies);
-    k1r = body.velocity;
+    k1v = CalculateTotalAcceleration(body->position, bodies);
+    k1r = body->velocity;
 
-    k2v = CalculateTotalAcceleration(body.position + (k1r * (h / 2)), bodies);
-    k2r = body.velocity + (k1v * (h / 2));
+    k2v = CalculateTotalAcceleration(body->position + (k1r * (h / 2)), bodies);
+    k2r = body->velocity + (k1v * (h / 2));
 
-    k3v = CalculateTotalAcceleration(body.position + (k2r * (h / 2)), bodies);
-    k3r = body.velocity + (k2v * (h / 2));
+    k3v = CalculateTotalAcceleration(body->position + (k2r * (h / 2)), bodies);
+    k3r = body->velocity + (k2v * (h / 2));
 
-    k4v = CalculateTotalAcceleration(body.position + (k3r * h), bodies);
-    k4r = body.velocity + (k3v * h);
+    k4v = CalculateTotalAcceleration(body->position + (k3r * h), bodies);
+    k4r = body->velocity + (k3v * h);
 
-    body.position += (k1r + 2 * k2r + 2 * k3r + k4r) * (h / 6);
-    body.velocity += (k1v + 2 * k2v + 2 * k3v + k4v) * (h / 6);
+    body->position += (k1r + 2 * k2r + 2 * k3r + k4r) * (h / 6);
+    body->velocity += (k1v + 2 * k2v + 2 * k3v + k4v) * (h / 6);
 
-    if (!body.celestialBody && body.thrust != Vector3dZero())
+    if (!body->celestialBody && body->thrust != Vector3dZero())
     {
-    	Vector3d thrust = body.thrust;
+    	Vector3d thrust = body->thrust;
 
     	if (_km)
     	{
     		thrust *= 0.001; 
     	}
 
-    	body.position += (thrust / body.mass) * h;
-    	body.velocity += (thrust / body.mass) * h;
+    	body->position += (thrust / body->mass) * h;
+    	body->velocity += (thrust / body->mass) * h;
     }
 }
 
@@ -119,7 +119,7 @@ void OrbitalSimulation::UpdateCelestialOrbits(const double& dt, std::vector<std:
 {
 	for(std::shared_ptr<OrbitalBody>& body : celestialBodies)
     {
-        RungeKutta(*body, celestialBodies, dt);
+        RungeKutta(body.get(), celestialBodies, dt);
 
         std::pair<double, std::weak_ptr<OrbitalBody>> topForce = std::make_pair(0, std::weak_ptr<OrbitalBody>());
 
@@ -144,7 +144,7 @@ void OrbitalSimulation::UpdateNonCelestialOrbits(const double& dt, std::vector<s
 {
 	for(std::shared_ptr<OrbitalBody>& body : nonCelestialBodies)
     {
-        RungeKutta(*body, celestialBodies, dt);
+        RungeKutta(body.get(), celestialBodies, dt);
 
         std::pair<double, std::weak_ptr<OrbitalBody>> topForce = std::make_pair(0, std::weak_ptr<OrbitalBody>());
 

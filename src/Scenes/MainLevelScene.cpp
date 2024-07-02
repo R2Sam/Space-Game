@@ -2,6 +2,11 @@
 #include "Services.h"
 #include "EventHandler.h"
 #include "SceneHandler.h"
+#include "GameStateHandler.h"
+
+#include "OrbitalSimulation.h"
+
+#include "Log.h"
 
 MainLevelScene::MainLevelScene(Services* servicesIn) : _services(servicesIn)
 {
@@ -73,11 +78,16 @@ void MainLevelScene::GetInputs()
 void MainLevelScene::Enter()
 {
 	_active = true;
+
+	_services->GetGameStateHandler()->orbitalSimulation->LoadBodiesFromFile("../data/bodies.txt");
+	_services->GetGameStateHandler()->orbitalSimulation->SetSpeed(100000);
 }
 
 void MainLevelScene::Exit()
 {
 	_active = false;
+
+	_services->GetGameStateHandler()->orbitalSimulation->SetSpeed(0);
 }
 
 void MainLevelScene::Update()
@@ -97,10 +107,47 @@ void MainLevelScene::Update()
 		_active = false;
 		return;
 	}
+
+	_planets = _services->GetGameStateHandler()->orbitalSimulation->GetBodiesV(true);
+	_craft = _services->GetGameStateHandler()->orbitalSimulation->GetBodiesV(false);
 }
 
 void MainLevelScene::Draw()
 {
 	if(!_active)
 		return;
+
+	static const float scaleFactor = 0.001;
+
+	for (std::weak_ptr<OrbitalBody>& ptr : _planets)
+	{
+		std::shared_ptr<OrbitalBody> body = ptr.lock();
+
+		if (!body)
+		{
+			continue;
+		}
+
+		Vector3d v = body->position * scaleFactor;
+
+		Vector2 pos = {v.x + _services->screenWidth / 2, -v.z + _services->screenHeight / 2};
+
+		DrawCircleV(pos, body->radius * scaleFactor, BLUE);
+	}
+
+	for (std::weak_ptr<OrbitalBody>& ptr : _craft)
+	{
+		std::shared_ptr<OrbitalBody> body = ptr.lock();
+
+		if (!body)
+		{
+			continue;
+		}
+
+		Vector3d v = body->position * scaleFactor;
+
+		Vector2 pos = {v.x + _services->screenWidth / 2, -v.z + _services->screenHeight / 2};
+
+		DrawCircleV(pos, body->radius * scaleFactor, RED);
+	}
 }
