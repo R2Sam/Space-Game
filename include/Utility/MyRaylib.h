@@ -57,130 +57,130 @@ struct Vector2d
 {
     double x, y;
 
-	constexpr Vector2d(const double& x = 0, const double& y = 0) : x(x), y(y) {}
+	constexpr inline Vector2d(const double& x = 0, const double& y = 0) : x(x), y(y) {}
 
-	constexpr Vector2d operator+(const Vector2d& rhs) const
+	constexpr inline Vector2d operator+(const Vector2d& rhs) const
 	{
 	    return Vector2d(x + rhs.x, y + rhs.y);
 	}
 
-	constexpr Vector2d operator-(const Vector2d& rhs) const
+	constexpr inline Vector2d operator-(const Vector2d& rhs) const
 	{
 	    return Vector2d(x - rhs.x, y - rhs.y);
 	}
 
-	constexpr Vector2d operator+(const double& scalar) const
+	constexpr inline Vector2d operator+(const double& scalar) const
 	{
 	    return Vector2d(x + scalar, y + scalar);
 	}
 
-	constexpr Vector2d operator-(const double& scalar) const 
+	constexpr inline Vector2d operator-(const double& scalar) const 
 	{
 	    return Vector2d(x - scalar, y - scalar);
 	}
 
-	constexpr Vector2d operator*(const Vector2d& rhs) const
+	constexpr inline Vector2d operator*(const Vector2d& rhs) const
 	{
 	    return Vector2d(x * rhs.x, y * rhs.y);
 	}
 
-	constexpr Vector2d operator*(const double& scalar) const
+	constexpr inline Vector2d operator*(const double& scalar) const
 	{
 	    return Vector2d(x * scalar, y * scalar);
 	}
 
-	constexpr Vector2d operator/(const double& scalar) const
+	constexpr inline Vector2d operator/(const double& scalar) const
 	{
 	    return Vector2d(x / scalar, y / scalar);
 	}
 
-	constexpr Vector2d operator-() const
+	constexpr inline Vector2d operator-() const
 	{
 	    return Vector2d(-x, -y);
 	}
 
-	constexpr Vector2d& operator+=(const Vector2d& rhs)
+	constexpr inline Vector2d& operator+=(const Vector2d& rhs)
 	{
 	    x += rhs.x;
 	    y += rhs.y;
 	    return *this;
 	}
 
-	constexpr Vector2d& operator-=(const Vector2d& rhs)
+	constexpr inline Vector2d& operator-=(const Vector2d& rhs)
 	{
 	    x -= rhs.x;
 	    y -= rhs.y;
 	    return *this;
 	}
 
-	constexpr Vector2d& operator+=(const double& scalar)
+	constexpr inline Vector2d& operator+=(const double& scalar)
 	{
 	    x += scalar;
 	    y += scalar;
 	    return *this;
 	}
 
-	constexpr Vector2d& operator-=(const double& scalar)
+	constexpr inline Vector2d& operator-=(const double& scalar)
 	{
 	    x -= scalar;
 	    y -= scalar;
 	    return *this;
 	}
 
-	constexpr Vector2d& operator*=(const Vector2d& rhs)
+	constexpr inline Vector2d& operator*=(const Vector2d& rhs)
 	{
 	    x *= rhs.x;
 	    y *= rhs.y;
 	    return *this;
 	}
 
-	constexpr Vector2d& operator*=(const double& scalar)
+	constexpr inline Vector2d& operator*=(const double& scalar)
 	{
 	    x *= scalar;
 	    y *= scalar;
 	    return *this;
 	}
 
-	constexpr Vector2d& operator/=(const double& scalar)
+	constexpr inline Vector2d& operator/=(const double& scalar)
 	{
 	    x /= scalar;
 	    y /= scalar;
 	    return *this;
 	}
 
-	constexpr Vector2 vec2() const
+	constexpr inline Vector2 vec2() const
 	{
 		return Vector2{(float)x, (float)y};
 	}
 
-	constexpr double dot(const Vector2d& rhs) const
+	constexpr inline double dot(const Vector2d& rhs) const
 	{
 	    return x * rhs.x + y * rhs.y;
 	}
 
-	constexpr Vector2d cross(const Vector2d& rhs) const
+	constexpr inline Vector2d cross(const Vector2d& rhs) const
 	{
 	    return Vector2d(x * rhs.y - y * rhs.x, y * rhs.x - x * rhs.y);
 	}
 
-	constexpr double length() const
+	constexpr inline double length() const
 	{
 	    return std::sqrt(x * x + y * y);
 	}
 
-	constexpr double lengthSqr() const
+	constexpr inline double lengthSqr() const
 	{
 	    return x * x + y * y;
 	}
 
-	constexpr double distance(const Vector2d& other) const
+	constexpr inline double distance(const Vector2d& other) const
 	{
 	    double dx = other.x - x;
 	    double dy = other.y - y;
 	    return std::sqrt(dx * dx + dy * dy);
 	}
 
-	constexpr Vector2d& normalize()
+	constexpr inline Vector2d& normalize()
 	{
 	    double len = length();
 	    if (len > 0)
@@ -192,7 +192,7 @@ struct Vector2d
 	}
 };
 
-constexpr Vector2d Vector2dZero()
+constexpr inline Vector2d Vector2dZero()
 {
     return Vector2d {0, 0};
 }
@@ -203,54 +203,54 @@ struct Vector3d
 {
     double x, y, z;
 
-	constexpr Vector3d(const double& x = 0, const double& y = 0, const double& z = 0) : x(x), y(y), z(z) {}
+	constexpr inline Vector3d(const double& x = 0, const double& y = 0, const double& z = 0) : x(x), y(y), z(z) {}
 
-	constexpr Vector3d operator+(const Vector3d& rhs) const
+	constexpr inline Vector3d operator+(const Vector3d& rhs) const
 	{
 	    return Vector3d(x + rhs.x, y + rhs.y, z + rhs.z);
 	}
 
-	constexpr Vector3d operator-(const Vector3d& rhs) const
+	constexpr inline Vector3d operator-(const Vector3d& rhs) const
 	{
 	    return Vector3d(x - rhs.x, y - rhs.y, z - rhs.z);
 	}
 
-	constexpr Vector3d operator+(const double& scalar) const
+	constexpr inline Vector3d operator+(const double& scalar) const
 	{
 	    return Vector3d(x + scalar, y + scalar, z + scalar);
 	}
 
-	constexpr Vector3d operator-(const double& scalar) const 
+	constexpr inline Vector3d operator-(const double& scalar) const 
 	{
 	    return Vector3d(x - scalar, y - scalar, z - scalar);
 	}
 
-	constexpr Vector3d operator*(const Vector3d& rhs) const
+	constexpr inline Vector3d operator*(const Vector3d& rhs) const
 	{
 	    return Vector3d(x * rhs.x, y * rhs.y, z * rhs.z);
 	}
 
-	constexpr Vector3d operator*(const double& scalar) const
+	constexpr inline Vector3d operator*(const double& scalar) const
 	{
 	    return Vector3d(x * scalar, y * scalar, z * scalar);
 	}
 
-	friend constexpr Vector3d operator*(const double scalar, const Vector3d& lhs)
+	friend constexpr inline Vector3d operator*(const double scalar, const Vector3d& lhs)
 	{
         return Vector3d(lhs.x * scalar, lhs.y * scalar, lhs.z * scalar);
     }
 
-	constexpr Vector3d operator/(const double& scalar) const
+	constexpr inline Vector3d operator/(const double& scalar) const
 	{
 	    return Vector3d(x / scalar, y / scalar, z / scalar);
 	}
 
-	constexpr Vector3d operator-() const
+	constexpr inline Vector3d operator-() const
 	{
 	    return Vector3d(-x, -y, -z);
 	}
 
-	constexpr bool operator== (const Vector3d& rhs) const
+	constexpr inline bool operator== (const Vector3d& rhs) const
 	{
 	    if (x == rhs.x && y == rhs.y && z == rhs.z)
 	    {
@@ -260,7 +260,7 @@ struct Vector3d
 	    return false;
 	}
 
-	constexpr bool operator!= (const Vector3d& rhs) const
+	constexpr inline bool operator!= (const Vector3d& rhs) const
 	{
 	    if (x != rhs.x || y != rhs.y || z != rhs.z)
 	    {
@@ -270,7 +270,7 @@ struct Vector3d
 	    return false;
 	}
 
-	constexpr Vector3d& operator+=(const Vector3d& rhs)
+	constexpr inline Vector3d& operator+=(const Vector3d& rhs)
 	{
 	    x += rhs.x;
 	    y += rhs.y;
@@ -278,7 +278,7 @@ struct Vector3d
 	    return *this;
 	}
 
-	constexpr Vector3d& operator-=(const Vector3d& rhs)
+	constexpr inline Vector3d& operator-=(const Vector3d& rhs)
 	{
 	    x -= rhs.x;
 	    y -= rhs.y;
@@ -286,7 +286,7 @@ struct Vector3d
 	    return *this;
 	}
 
-	constexpr Vector3d& operator+=(const double& scalar)
+	constexpr inline Vector3d& operator+=(const double& scalar)
 	{
 	    x += scalar;
 	    y += scalar;
@@ -294,7 +294,7 @@ struct Vector3d
 	    return *this;
 	}
 
-	constexpr Vector3d& operator-=(const double& scalar)
+	constexpr inline Vector3d& operator-=(const double& scalar)
 	{
 	    x -= scalar;
 	    y -= scalar;
@@ -302,7 +302,7 @@ struct Vector3d
 	    return *this;
 	}
 
-	constexpr Vector3d& operator*=(const Vector3d& rhs)
+	constexpr inline Vector3d& operator*=(const Vector3d& rhs)
 	{
 	    x *= rhs.x;
 	    y *= rhs.y;
@@ -310,7 +310,7 @@ struct Vector3d
 	    return *this;
 	}
 
-	constexpr Vector3d& operator*=(const double& scalar)
+	constexpr inline Vector3d& operator*=(const double& scalar)
 	{
 	    x *= scalar;
 	    y *= scalar;
@@ -318,7 +318,7 @@ struct Vector3d
 	    return *this;
 	}
 
-	constexpr Vector3d& operator/=(const double& scalar)
+	constexpr inline Vector3d& operator/=(const double& scalar)
 	{
 	    x /= scalar;
 	    y /= scalar;
@@ -326,32 +326,32 @@ struct Vector3d
 	    return *this;
 	}
 
-	constexpr Vector3 vec3() const
+	constexpr inline Vector3 vec3() const
 	{
 		return Vector3{(float)x, (float)y, (float)z};
 	}
 
-	constexpr double dot(const Vector3d& rhs) const
+	constexpr inline double dot(const Vector3d& rhs) const
 	{
 	    return x * rhs.x + y * rhs.y + z * rhs.z;
 	}
 
-	constexpr Vector3d cross(const Vector3d& rhs) const
+	constexpr inline Vector3d cross(const Vector3d& rhs) const
 	{
 	    return Vector3d(y * rhs.z - z * rhs.y, z * rhs.x - x * rhs.z, x * rhs.y - y * rhs.x);
 	}
 
-	constexpr double length() const
+	constexpr inline double length() const
 	{
 	    return std::sqrt(x * x + y * y + z * z);
 	}
 
-	constexpr double lengthSqr() const
+	constexpr inline double lengthSqr() const
 	{
 	    return x * x + y * y + z * z;
 	}
 
-	constexpr double distance(const Vector3d& other) const
+	constexpr inline double distance(const Vector3d& other) const
 	{
 	    double dx = other.x - x;
 	    double dy = other.y - y;
@@ -359,7 +359,7 @@ struct Vector3d
 	    return std::sqrt(dx * dx + dy * dy + dz * dz);
 	}
 
-	constexpr Vector3d& normalize()
+	constexpr inline Vector3d& normalize()
 	{
 	    double len = length();
 	    if (len > 0)
@@ -372,7 +372,7 @@ struct Vector3d
 	}
 };
 
-constexpr Vector3d Vector3dZero()
+constexpr inline Vector3d Vector3dZero()
 {
     return Vector3d {0, 0, 0};
 }
@@ -382,130 +382,130 @@ struct Vector2f
 {
     float x, y;
 
-	constexpr Vector2f(const float& x = 0, const float& y = 0) : x(x), y(y) {}
+	constexpr inline Vector2f(const float& x = 0, const float& y = 0) : x(x), y(y) {}
 
-	constexpr Vector2f operator+(const Vector2f& rhs) const
+	constexpr inline Vector2f operator+(const Vector2f& rhs) const
 	{
 	    return Vector2f(x + rhs.x, y + rhs.y);
 	}
 
-	constexpr Vector2f operator-(const Vector2f& rhs) const
+	constexpr inline Vector2f operator-(const Vector2f& rhs) const
 	{
 	    return Vector2f(x - rhs.x, y - rhs.y);
 	}
 
-	constexpr Vector2f operator+(const float& scalar) const
+	constexpr inline Vector2f operator+(const float& scalar) const
 	{
 	    return Vector2f(x + scalar, y + scalar);
 	}
 
-	constexpr Vector2f operator-(const float& scalar) const 
+	constexpr inline Vector2f operator-(const float& scalar) const 
 	{
 	    return Vector2f(x - scalar, y - scalar);
 	}
 
-	constexpr Vector2f operator*(const Vector2f& rhs) const
+	constexpr inline Vector2f operator*(const Vector2f& rhs) const
 	{
 	    return Vector2f(x * rhs.x, y * rhs.y);
 	}
 
-	constexpr Vector2f operator*(const float& scalar) const
+	constexpr inline Vector2f operator*(const float& scalar) const
 	{
 	    return Vector2f(x * scalar, y * scalar);
 	}
 
-	constexpr Vector2f operator/(const float& scalar) const
+	constexpr inline Vector2f operator/(const float& scalar) const
 	{
 	    return Vector2f(x / scalar, y / scalar);
 	}
 
-	constexpr Vector2f operator-() const
+	constexpr inline Vector2f operator-() const
 	{
 	    return Vector2f(-x, -y);
 	}
 
-	constexpr Vector2f& operator+=(const Vector2f& rhs)
+	constexpr inline Vector2f& operator+=(const Vector2f& rhs)
 	{
 	    x += rhs.x;
 	    y += rhs.y;
 	    return *this;
 	}
 
-	constexpr Vector2f& operator-=(const Vector2f& rhs)
+	constexpr inline Vector2f& operator-=(const Vector2f& rhs)
 	{
 	    x -= rhs.x;
 	    y -= rhs.y;
 	    return *this;
 	}
 
-	constexpr Vector2f& operator+=(const float& scalar)
+	constexpr inline Vector2f& operator+=(const float& scalar)
 	{
 	    x += scalar;
 	    y += scalar;
 	    return *this;
 	}
 
-	constexpr Vector2f& operator-=(const float& scalar)
+	constexpr inline Vector2f& operator-=(const float& scalar)
 	{
 	    x -= scalar;
 	    y -= scalar;
 	    return *this;
 	}
 
-	constexpr Vector2f& operator*=(const Vector2f& rhs)
+	constexpr inline Vector2f& operator*=(const Vector2f& rhs)
 	{
 	    x *= rhs.x;
 	    y *= rhs.y;
 	    return *this;
 	}
 
-	constexpr Vector2f& operator*=(const float& scalar)
+	constexpr inline Vector2f& operator*=(const float& scalar)
 	{
 	    x *= scalar;
 	    y *= scalar;
 	    return *this;
 	}
 
-	constexpr Vector2f& operator/=(const float& scalar)
+	constexpr inline Vector2f& operator/=(const float& scalar)
 	{
 	    x /= scalar;
 	    y /= scalar;
 	    return *this;
 	}
 
-	constexpr Vector2 vec2() const
+	constexpr inline Vector2 vec2() const
 	{
 		return Vector2{x, y};
 	}
 
-	constexpr float dot(const Vector2f& rhs) const
+	constexpr inline float dot(const Vector2f& rhs) const
 	{
 	    return x * rhs.x + y * rhs.y;
 	}
 
-	constexpr Vector2f cross(const Vector2f& rhs) const
+	constexpr inline Vector2f cross(const Vector2f& rhs) const
 	{
 	    return Vector2f(x * rhs.y - y * rhs.x, y * rhs.x - x * rhs.y);
 	}
 
-	constexpr float length() const
+	constexpr inline float length() const
 	{
 	    return std::sqrt(x * x + y * y);
 	}
 
-	constexpr float lengthSqr() const
+	constexpr inline float lengthSqr() const
 	{
 	    return x * x + y * y;
 	}
 
-	constexpr float distance(const Vector2f& other) const
+	constexpr inline float distance(const Vector2f& other) const
 	{
 	    float dx = other.x - x;
 	    float dy = other.y - y;
 	    return std::sqrt(dx * dx + dy * dy);
 	}
 
-	constexpr Vector2f& normalize()
+	constexpr inline Vector2f& normalize()
 	{
 	    float len = length();
 	    if (len > 0)
@@ -517,7 +517,7 @@ struct Vector2f
 	}
 };
 
-constexpr Vector2f Vector2fZero()
+constexpr inline Vector2f Vector2fZero()
 {
     return Vector2f {0, 0};
 }
@@ -527,49 +527,49 @@ struct Vector3f
 {
     float x, y, z;
 
-	constexpr Vector3f(const float& x = 0, const float& y = 0, const float& z = 0) : x(x), y(y), z(z) {}
+	constexpr inline Vector3f(const float& x = 0, const float& y = 0, const float& z = 0) : x(x), y(y), z(z) {}
 
-	constexpr Vector3f operator+(const Vector3f& rhs) const
+	constexpr inline Vector3f operator+(const Vector3f& rhs) const
 	{
 	    return Vector3f(x + rhs.x, y + rhs.y, z + rhs.z);
 	}
 
-	constexpr Vector3f operator-(const Vector3f& rhs) const
+	constexpr inline Vector3f operator-(const Vector3f& rhs) const
 	{
 	    return Vector3f(x - rhs.x, y - rhs.y, z - rhs.z);
 	}
 
-	constexpr Vector3f operator+(const float& scalar) const
+	constexpr inline Vector3f operator+(const float& scalar) const
 	{
 	    return Vector3f(x + scalar, y + scalar, z + scalar);
 	}
 
-	constexpr Vector3f operator-(const float& scalar) const 
+	constexpr inline Vector3f operator-(const float& scalar) const 
 	{
 	    return Vector3f(x - scalar, y - scalar, z - scalar);
 	}
 
-	constexpr Vector3f operator*(const Vector3f& rhs) const
+	constexpr inline Vector3f operator*(const Vector3f& rhs) const
 	{
 	    return Vector3f(x * rhs.x, y * rhs.y, z * rhs.z);
 	}
 
-	constexpr Vector3f operator*(const float& scalar) const
+	constexpr inline Vector3f operator*(const float& scalar) const
 	{
 	    return Vector3f(x * scalar, y * scalar, z * scalar);
 	}
 
-	constexpr Vector3f operator/(const float& scalar) const
+	constexpr inline Vector3f operator/(const float& scalar) const
 	{
 	    return Vector3f(x / scalar, y / scalar, z / scalar);
 	}
 
-	constexpr Vector3f operator-() const
+	constexpr inline Vector3f operator-() const
 	{
 	    return Vector3f(-x, -y, -z);
 	}
 
-	constexpr Vector3f& operator+=(const Vector3f& rhs)
+	constexpr inline Vector3f& operator+=(const Vector3f& rhs)
 	{
 	    x += rhs.x;
 	    y += rhs.y;
@@ -577,7 +577,7 @@ struct Vector3f
 	    return *this;
 	}
 
-	constexpr Vector3f& operator-=(const Vector3f& rhs)
+	constexpr inline Vector3f& operator-=(const Vector3f& rhs)
 	{
 	    x -= rhs.x;
 	    y -= rhs.y;
@@ -585,7 +585,7 @@ struct Vector3f
 	    return *this;
 	}
 
-	constexpr Vector3f& operator+=(const float& scalar)
+	constexpr inline Vector3f& operator+=(const float& scalar)
 	{
 	    x += scalar;
 	    y += scalar;
@@ -593,7 +593,7 @@ struct Vector3f
 	    return *this;
 	}
 
-	constexpr Vector3f& operator-=(const float& scalar)
+	constexpr inline Vector3f& operator-=(const float& scalar)
 	{
 	    x -= scalar;
 	    y -= scalar;
@@ -601,7 +601,7 @@ struct Vector3f
 	    return *this;
 	}
 
-	constexpr Vector3f& operator*=(const Vector3f& rhs)
+	constexpr inline Vector3f& operator*=(const Vector3f& rhs)
 	{
 	    x *= rhs.x;
 	    y *= rhs.y;
@@ -609,7 +609,7 @@ struct Vector3f
 	    return *this;
 	}
 
-	constexpr Vector3f& operator*=(const float& scalar)
+	constexpr inline Vector3f& operator*=(const float& scalar)
 	{
 	    x *= scalar;
 	    y *= scalar;
@@ -617,7 +617,7 @@ struct Vector3f
 	    return *this;
 	}
 
-	constexpr Vector3f& operator/=(const float& scalar)
+	constexpr inline Vector3f& operator/=(const float& scalar)
 	{
 	    x /= scalar;
 	    y /= scalar;
@@ -625,32 +625,32 @@ struct Vector3f
 	    return *this;
 	}
 
-	constexpr Vector3 vec3() const
+	constexpr inline Vector3 vec3() const
 	{
 		return Vector3{x, y, z};
 	}
 
-	constexpr float dot(const Vector3f& rhs) const
+	constexpr inline float dot(const Vector3f& rhs) const
 	{
 	    return x * rhs.x + y * rhs.y + z * rhs.z;
 	}
 
-	constexpr Vector3f cross(const Vector3f& rhs) const
+	constexpr inline Vector3f cross(const Vector3f& rhs) const
 	{
 	    return Vector3f(y * rhs.z - z * rhs.y, z * rhs.x - x * rhs.z, x * rhs.y - y * rhs.x);
 	}
 
-	constexpr float length() const
+	constexpr inline float length() const
 	{
 	    return std::sqrt(x * x + y * y + z * z);
 	}
 
-	constexpr float lengthSqr() const
+	constexpr inline float lengthSqr() const
 	{
 	    return x * x + y * y + z * z;
 	}
 
-	constexpr float distance(const Vector3f& other) const
+	constexpr inline float distance(const Vector3f& other) const
 	{
 	    float dx = other.x - x;
 	    float dy = other.y - y;
@@ -658,7 +658,7 @@ struct Vector3f
 	    return std::sqrt(dx * dx + dy * dy + dz * dz);
 	}
 
-	constexpr Vector3f& normalize()
+	constexpr inline Vector3f& normalize()
 	{
 	    float len = length();
 	    if (len > 0)
@@ -671,7 +671,7 @@ struct Vector3f
 	}
 };
 
-constexpr Vector3f Vector3fZero()
+constexpr inline Vector3f Vector3fZero()
 {
     return Vector3f {0, 0, 0};
 }

@@ -38,9 +38,5 @@ void GameStateHandler::OnEvent(std::shared_ptr<const Event>& event)
 
 void GameStateHandler::Update()
 {
-	auto start =  BeginTimer();
-
 	orbitalSimulation->Update();
-
-	EndTimer(start, "OrbitalSimulation", false, 60);
 }
