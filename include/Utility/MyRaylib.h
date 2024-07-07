@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <chrono>
 
 // Draw texture with scaling
 void DrawTextureScale(const Texture2D& texture, const Vector2& position, const float& scale, const Color& color);
@@ -46,6 +47,10 @@ Rectangle CenteredRectangle(const Rectangle& rec, const Vector2& pos);
 // Used for shadowmaps
 RenderTexture2D LoadShadowmapRenderTexture(int width, int height);
 void UnloadShadowmapRenderTexture(RenderTexture2D target);
+
+// Time a segment of code and log every n frames
+std::chrono::time_point<std::chrono::high_resolution_clock> BeginTimer();
+void EndTimer(const std::chrono::time_point<std::chrono::high_resolution_clock>& startTime, const std::string& name, const bool& percentage, const int& frames);
 
 // Vector2 made out of doubles
 struct Vector2d

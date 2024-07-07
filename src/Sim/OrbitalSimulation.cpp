@@ -64,19 +64,30 @@ Vector3d OrbitalSimulation::CalculateAcceleration(const Vector3d& r, const doubl
 	return -r * ((mu)/(pow(r.length(), 3)));
 }
 
-Vector3d OrbitalSimulation::CalculateTotalAcceleration(const Vector3d& position, const std::vector<std::shared_ptr<OrbitalBody>>& bodies) const
+Vector3d OrbitalSimulation::CalculateTotalAcceleration(const Vector3d& position, OrbitalBody* body, const std::vector<std::shared_ptr<OrbitalBody>>& bodies) const
 {
 	Vector3d acceleration = Vector3dZero();
+	std::pair<double, std::weak_ptr<OrbitalBody>> topForce = std::make_pair(0, std::weak_ptr<OrbitalBody>());
 
 	for (const std::shared_ptr<OrbitalBody>& otherBody : bodies)
 	{
-		if (position != otherBody->position)
+		if (body != otherBody.get())
 		{
 			Vector3d r = position - otherBody->position;
 
-			acceleration += CalculateAcceleration(r, otherBody->mass);
+			Vector3d v = CalculateAcceleration(r, otherBody->mass);
+			acceleration += v;
+
+			float strength = v.length();
+			if (topForce.first < strength)
+			{
+				topForce.first = strength;
+				topForce.second = otherBody;
+			}
 		}
 	}
+
+	body->parent = topForce.second;
 
 	return acceleration;
 }
@@ -86,20 +97,20 @@ void OrbitalSimulation::RungeKutta(OrbitalBody* body, const std::vector<std::sha
     Vector3d k1v, k2v, k3v, k4v;
     Vector3d k1r, k2r, k3r, k4r;
 
-    k1v = CalculateTotalAcceleration(body->position, bodies);
+    k1v = CalculateTotalAcceleration(body->position, body, bodies);
     k1r = body->velocity;
 
-    k2v = CalculateTotalAcceleration(body->position + (k1r * (h / 2)), bodies);
+    k2v = CalculateTotalAcceleration(body->position + (k1r * (h / 2)), body, bodies);
     k2r = body->velocity + (k1v * (h / 2));
 
-    k3v = CalculateTotalAcceleration(body->position + (k2r * (h / 2)), bodies);
+    k3v = CalculateTotalAcceleration(body->position + (k2r * (h / 2)), body, bodies);
     k3r = body->velocity + (k2v * (h / 2));
 
-    k4v = CalculateTotalAcceleration(body->position + (k3r * h), bodies);
+    k4v = CalculateTotalAcceleration(body->position + (k3r * h), body, bodies);
     k4r = body->velocity + (k3v * h);
 
-    body->position += (k1r + 2 * k2r + 2 * k3r + k4r) * (h / 6);
-    body->velocity += (k1v + 2 * k2v + 2 * k3v + k4v) * (h / 6);
+    body->posToAdd = (k1r + 2 * k2r + 2 * k3r + k4r) * (h / 6);
+    body->velToAdd = (k1v + 2 * k2v + 2 * k3v + k4v) * (h / 6);
 
     if (!body->celestialBody && body->thrust != Vector3dZero())
     {
@@ -110,8 +121,8 @@ void OrbitalSimulation::RungeKutta(OrbitalBody* body, const std::vector<std::sha
     		thrust *= 0.001; 
     	}
 
-    	body->position += (thrust / body->mass) * h;
-    	body->velocity += (thrust / body->mass) * h;
+    	body->posToAdd = (thrust / body->mass) * h;
+    	body->velToAdd = (thrust / body->mass) * h;
     }
 }
 
@@ -120,23 +131,12 @@ void OrbitalSimulation::UpdateCelestialOrbits(const double& dt, std::vector<std:
 	for(std::shared_ptr<OrbitalBody>& body : celestialBodies)
     {
         RungeKutta(body.get(), celestialBodies, dt);
+    }
 
-        std::pair<double, std::weak_ptr<OrbitalBody>> topForce = std::make_pair(0, std::weak_ptr<OrbitalBody>());
-
-        for(std::shared_ptr<OrbitalBody>& otherBody : celestialBodies)
-        {
-            if (&body != &otherBody)
-            {
-                float strength = CalculateAcceleration(otherBody->position.distance(body->position), otherBody->mass).length();
-                if (strength > topForce.first)
-                {
-                	topForce.first = strength;
-                	topForce.second = otherBody;
-                }
-            }
-        }
-
-        body->parent = topForce.second;
+    for(std::shared_ptr<OrbitalBody>& body : celestialBodies)
+    {
+        body->position += body->posToAdd;
+        body->velocity += body->velToAdd;
     }
 }
 
@@ -144,24 +144,13 @@ void OrbitalSimulation::UpdateNonCelestialOrbits(const double& dt, std::vector<s
 {
 	for(std::shared_ptr<OrbitalBody>& body : nonCelestialBodies)
     {
-        RungeKutta(body.get(), celestialBodies, dt);
+    	RungeKutta(body.get(), celestialBodies, dt);
+    }
 
-        std::pair<double, std::weak_ptr<OrbitalBody>> topForce = std::make_pair(0, std::weak_ptr<OrbitalBody>());
-
-        for(std::shared_ptr<OrbitalBody>& otherBody : celestialBodies)
-        {
-            if (&body != &otherBody)
-            {
-                float strength = CalculateAcceleration(otherBody->position.distance(body->position), otherBody->mass).length();
-                if (strength > topForce.first)
-                {
-                	topForce.first = strength;
-                	topForce.second = otherBody;
-                }
-            }
-        }
-
-        body->parent = topForce.second;
+    for(std::shared_ptr<OrbitalBody>& body : nonCelestialBodies)
+    {
+        body->position += body->posToAdd;
+        body->velocity += body->velToAdd;
     }
 }
 

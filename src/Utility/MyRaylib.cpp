@@ -1,6 +1,7 @@
 #include "MyRaylib.h"
 
 #include "raymath.h"
+#include "Log.h"
 
 #include <iomanip>
 #include <sstream> 
@@ -197,5 +198,32 @@ void UnloadShadowmapRenderTexture(RenderTexture2D target)
     if (target.id > 0)
     {
         rlUnloadFramebuffer(target.id);
+    }
+}
+
+std::chrono::time_point<std::chrono::high_resolution_clock> BeginTimer()
+{
+    return std::chrono::high_resolution_clock::now();
+}
+
+void EndTimer(const std::chrono::time_point<std::chrono::high_resolution_clock>& startTime, const std::string& name, const bool& percentage, const int& frames)
+{
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - startTime;
+
+    static int i = 0;
+    i++;
+    if (i >= frames)
+    {
+        i = 0;
+        if (percentage)
+        {
+            Log("Section " << name << " took: " << (elapsed.count() / GetFrameTime()) * 100 << "%");
+        }
+
+        else
+        {
+            Log("Section " << name << " took: " << elapsed.count() * 1000 << "ms");
+        }
     }
 }

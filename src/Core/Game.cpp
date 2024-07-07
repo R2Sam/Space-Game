@@ -5,6 +5,7 @@
 #include "raylib.h"
 
 #include "Log.h"
+#include <memory>
 
 Game::Game(int width, int height, const std::string title)
 {
@@ -28,19 +29,20 @@ Game::~Game()
 void Game::Init()
 {
 	// Basic game handlers
-	_servicesPtr = &_services;
+	_services = std::make_unique<Services>();
+	_servicesPtr = _services.get();
 	_sceneHandler = std::make_unique<SceneHandler>(_servicesPtr);
 }
 
 void Game::DeInit()
 {
-	_services.GetEventHandler()->RemoveListener(_ptr);
+	_services->GetEventHandler()->RemoveListener(_ptr);
 }
 
 void Game::AddSelfAsListener()
 {
-	_services.GetEventHandler()->AddListener(_ptr);
-	_services.GetEventHandler()->AddLocalListener("Game" ,_ptr);
+	_services->GetEventHandler()->AddListener(_ptr);
+	_services->GetEventHandler()->AddLocalListener("Game" ,_ptr);
 }
 
 void Game::Run()
@@ -64,13 +66,13 @@ void Game::Tick()
 void Game::Update()
 {
 	// Update the deltaTime and game window sizes
-	_services.UpdateVar();
+	_services->UpdateVar();
 
 	// Update current scene
 	_sceneHandler->Update();
 
 	// Update service objects
-	_services.UpdateObj();
+	_services->UpdateObj();
 }
 
 void Game::Draw()

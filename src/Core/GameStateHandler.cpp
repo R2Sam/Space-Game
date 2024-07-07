@@ -4,6 +4,8 @@
 
 #include "OrbitalSimulation.h"
 
+#include "MyRaylib.h"
+
 #include <string>
 
 GameStateHandler::GameStateHandler(Services* servicesIn) : _services(servicesIn)
@@ -36,5 +38,9 @@ void GameStateHandler::OnEvent(std::shared_ptr<const Event>& event)
 
 void GameStateHandler::Update()
 {
+	auto start =  BeginTimer();
+
 	orbitalSimulation->Update();
+
+	EndTimer(start, "OrbitalSimulation", false, 60);
 }

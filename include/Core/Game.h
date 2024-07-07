@@ -27,7 +27,7 @@ private:
 	bool _shouldClose = false;
 	
 	// Basic game components 
-	Services _services;
+	std::unique_ptr<Services> _services;
 	Services* _servicesPtr;
 	std::unique_ptr<SceneHandler> _sceneHandler;
 

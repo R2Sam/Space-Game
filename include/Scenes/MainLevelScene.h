@@ -7,12 +7,14 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-#include <string>
 #include <memory>
+#include <string>
 
 class Services;
 
 class OrbitalBody;
+
+#define Tile std::pair<std::string, std::pair<Color, Color>>
 
 class MainLevelScene : public Scene, public EventListener
 {
@@ -34,6 +36,18 @@ private:
 	std::unordered_map<int, bool> _mouseKeys;
 	std::unordered_map<int, bool> _mouseKeysDown;
 
+	// Fomt
+	Font _font;
+	Vector2 _fontSize;
+
+	// Screen
+	Vector2 _screenSize;
+	std::vector<std::vector<Tile>> _screen;
+
+	Tile _backgroundTile;
+	Tile _bodyTile;
+	Tile _craftTile;
+
 	// TEST SIM
 	std::vector<std::weak_ptr<OrbitalBody>> _planets;
 	std::vector<std::weak_ptr<OrbitalBody>> _craft;
@@ -44,6 +58,8 @@ private:
 	void OnEvent(std::shared_ptr<const Event>& event) override;
 
 	void GetInputs() override;
+
+	void ResetScreen();
 
 public:
 
@@ -56,3 +72,5 @@ public:
 	void Update() override;
 	void Draw() override;
 };
+
+void DrawCircleScreen(std::vector<std::vector<Tile>>& screen, const Vector2& center, const int& radius, const Tile& tile);
