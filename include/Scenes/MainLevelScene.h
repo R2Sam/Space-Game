@@ -13,6 +13,7 @@
 class Services;
 
 class OrbitalBody;
+class Screen;
 
 #define Tile std::pair<std::string, std::pair<Color, Color>>
 
@@ -36,13 +37,8 @@ private:
 	std::unordered_map<int, bool> _mouseKeys;
 	std::unordered_map<int, bool> _mouseKeysDown;
 
-	// Fomt
-	Font _font;
-	Vector2 _fontSize;
-
 	// Screen
-	Vector2 _screenSize;
-	std::vector<std::vector<Tile>> _screen;
+	std::unique_ptr<Screen> _screen;
 
 	Tile _backgroundTile;
 	Tile _bodyTile;
@@ -59,8 +55,6 @@ private:
 
 	void GetInputs() override;
 
-	void ResetScreen();
-
 public:
 
 	MainLevelScene(Services* servicesIn);
@@ -72,5 +66,3 @@ public:
 	void Update() override;
 	void Draw() override;
 };
-
-void DrawCircleScreen(std::vector<std::vector<Tile>>& screen, const Vector2& center, const int& radius, const Tile& tile);

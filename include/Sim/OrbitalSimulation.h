@@ -75,13 +75,12 @@ public:
 	std::vector<std::weak_ptr<OrbitalBody>> GetBodiesV(const bool& celestialBody);
 
 	// Get bodies at a certain instance in the future or past
-	std::pair<std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>, std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>> BodiesAtTime(const double& time);
-	std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr<OrbitalBody>>> BodiesAtTimeV(const double& time);
+	std::pair<std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>, std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>> BodiesAtTime(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time);
+	std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr<OrbitalBody>>> BodiesAtTimeV(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time);
 
 	// Get future positions
-	std::vector<std::vector<Vector3d>> GetCelestialBodiesPos(const double& time, const int& resolution);
-	std::vector<Vector3d> GetNonCelestialBodyPos(std::weak_ptr<OrbitalBody>& ptr, const double& time, const int& resolution);
-	std::pair<std::vector<std::vector<Vector3d>>, std::vector<Vector3d>> GetCelestialBodiesPosAndNonCelestialBodyPos(std::weak_ptr<OrbitalBody>& ptr, const double& time, const int& resolution);
+	std::vector<std::vector<std::pair<std::string, Vector3d>>> GetCelestialBodiesPos(const double& time, const int& resolution);
+	std::pair<std::vector<std::vector<std::pair<std::string, Vector3d>>>, std::vector<std::vector<std::pair<std::string, Vector3d>>>> GetBodiesPos(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time, const int& resolution);
 
 	// Get time since sim start in s
 	double GetTime() const;

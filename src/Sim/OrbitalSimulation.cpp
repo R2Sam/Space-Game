@@ -313,9 +313,20 @@ std::vector<std::weak_ptr<OrbitalBody>> OrbitalSimulation::GetBodiesV(const bool
 	return bodies;
 }
 
-std::pair<std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>, std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>> OrbitalSimulation::BodiesAtTime(const double& time)
+std::pair<std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>, std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>> OrbitalSimulation::BodiesAtTime(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time)
 {
 	std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr<OrbitalBody>>> bodies;
+
+	std::vector<std::shared_ptr<OrbitalBody>> nonCelestialBodies;
+	nonCelestialBodies.reserve(ptrs.size());
+
+	for (std::weak_ptr<OrbitalBody> weak : ptrs)
+	{
+		if (weak.lock())
+		{
+			nonCelestialBodies.push_back(weak.lock());
+		}
+	}
 
 	bodies.first.reserve(_celestialBodies.size());
 	for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
@@ -324,7 +335,7 @@ std::pair<std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>, std::un
 	}
 
 	bodies.second.reserve(_nonCelestialBodies.size());
-	for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+	for (std::shared_ptr<OrbitalBody>& body : nonCelestialBodies)
 	{
 		bodies.second.push_back(std::make_shared<OrbitalBody>(*body));
 	}
@@ -382,9 +393,20 @@ std::pair<std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>, std::un
 	return output;
 }
 
-std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr<OrbitalBody>>> OrbitalSimulation::BodiesAtTimeV(const double& time)
+std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr<OrbitalBody>>> OrbitalSimulation::BodiesAtTimeV(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time)
 {
 	std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr<OrbitalBody>>> bodies;
+
+	std::vector<std::shared_ptr<OrbitalBody>> nonCelestialBodies;
+	nonCelestialBodies.reserve(ptrs.size());
+
+	for (std::weak_ptr<OrbitalBody> weak : ptrs)
+	{
+		if (weak.lock())
+		{
+			nonCelestialBodies.push_back(weak.lock());
+		}
+	}
 
 	bodies.first.reserve(_celestialBodies.size());
 	for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
@@ -393,7 +415,7 @@ std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr
 	}
 
 	bodies.second.reserve(_nonCelestialBodies.size());
-	for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+	for (std::shared_ptr<OrbitalBody>& body : nonCelestialBodies)
 	{
 		bodies.second.push_back(std::make_shared<OrbitalBody>(*body));
 	}
@@ -439,117 +461,22 @@ std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr
 	return bodies;
 }
 
-std::vector<std::vector<Vector3d>> OrbitalSimulation::GetCelestialBodiesPos(const double& time, const int& resolution)
+std::vector<std::vector<std::pair<std::string, Vector3d>>> OrbitalSimulation::GetCelestialBodiesPos(const double& time, const int& resolution)
 {
-	std::vector<std::vector<Vector3d>> positions;
+	std::vector<std::vector<std::pair<std::string, Vector3d>>> positions;
 
 	if (time != 0 && time > _simTime && resolution > 0)
 	{
 		positions.reserve(_celestialBodies.size());
 
-		std::vector<std::shared_ptr<OrbitalBody>> bodies;
-		bodies.reserve(_celestialBodies.size());
-
-		for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
-		{
-			bodies.push_back(std::make_shared<OrbitalBody>(*body));
-			positions.push_back(std::vector<Vector3d>{});
-		}
-
-		float updates = (time - _simTime) / _dt;
-
-		float r = std::fmod(updates, 1.0);
-		if ( r > 0.01)
-		{
-			updates -= r;
-		}
-
-		unsigned int cycles = updates;
-
-		for (int i = 0; i < cycles; i++)
-		{
-			UpdateCelestialOrbits(_dt, bodies);
-
-			if (i % resolution == 0)
-			{
-				for (int i = 0; i < bodies.size(); i++)
-				{
-					positions[i].push_back(bodies[i]->position);
-				} 
-			}
-		}
-	}
-
-	return positions;
-}
-
-std::vector<Vector3d> OrbitalSimulation::GetNonCelestialBodyPos(std::weak_ptr<OrbitalBody>& ptr, const double& time, const int& resolution)
-{
-	std::vector<Vector3d> positions;
-
-	std::shared_ptr<OrbitalBody> craft = ptr.lock();
-
-	if (craft && time != 0 && time > _simTime && resolution > 0)
-	{
-		positions.reserve(_celestialBodies.size());
-
 		std::vector<std::shared_ptr<OrbitalBody>> celestialBodies;
 		celestialBodies.reserve(_celestialBodies.size());
 
 		for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
 		{
 			celestialBodies.push_back(std::make_shared<OrbitalBody>(*body));
+			positions.push_back(std::vector<std::pair<std::string, Vector3d>>{});
 		}
-
-		std::vector<std::shared_ptr<OrbitalBody>> nonCelestialBodies;
-		nonCelestialBodies.push_back(std::make_shared<OrbitalBody>(*craft));
-
-		float updates = (time - _simTime) / _dt;
-
-		float r = std::fmod(updates, 1.0);
-		if ( r > 0.01)
-		{
-			updates -= r;
-		}
-
-		unsigned int cycles = updates;
-
-		for (int i = 0; i < cycles; i++)
-		{
-			UpdateCelestialOrbits(_dt, celestialBodies);
-			UpdateNonCelestialOrbits(_dt, celestialBodies, nonCelestialBodies);
-
-			if (i % resolution == 0)
-			{
-				positions.push_back(nonCelestialBodies[0]->position);
-			}
-		}
-	}
-
-	return positions;
-}
-
-std::pair<std::vector<std::vector<Vector3d>>, std::vector<Vector3d>> OrbitalSimulation::GetCelestialBodiesPosAndNonCelestialBodyPos(std::weak_ptr<OrbitalBody>& ptr, const double& time, const int& resolution)
-{
-	std::pair<std::vector<std::vector<Vector3d>>, std::vector<Vector3d>> positions;
-
-	std::shared_ptr<OrbitalBody> craft = ptr.lock();
-
-	if (craft && time != 0 && time > _simTime && resolution > 0)
-	{
-		positions.first.reserve(_celestialBodies.size());
-
-		std::vector<std::shared_ptr<OrbitalBody>> celestialBodies;
-		celestialBodies.reserve(_celestialBodies.size());
-
-		for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
-		{
-			celestialBodies.push_back(std::make_shared<OrbitalBody>(*body));
-			positions.first.push_back(std::vector<Vector3d>{});
-		}
-
-		std::vector<std::shared_ptr<OrbitalBody>> nonCelestialBodies;
-		nonCelestialBodies.push_back(std::make_shared<OrbitalBody>(*craft));
 
 		float updates = (time - _simTime) / _dt;
 
@@ -569,10 +496,69 @@ std::pair<std::vector<std::vector<Vector3d>>, std::vector<Vector3d>> OrbitalSimu
 			{
 				for (int i = 0; i < celestialBodies.size(); i++)
 				{
-					positions.first[i].push_back(celestialBodies[i]->position);
-				} 
-				
-				positions.second.push_back(nonCelestialBodies[0]->position);
+					positions[i].push_back(std::make_pair(celestialBodies[i]->name, celestialBodies[i]->position));
+				}
+			}
+		}
+	}
+
+	return positions;
+}
+
+std::pair<std::vector<std::vector<std::pair<std::string, Vector3d>>>, std::vector<std::vector<std::pair<std::string, Vector3d>>>> OrbitalSimulation::GetBodiesPos(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time, const int& resolution)
+{
+	std::pair<std::vector<std::vector<std::pair<std::string, Vector3d>>>, std::vector<std::vector<std::pair<std::string, Vector3d>>>> positions;
+
+	std::vector<std::shared_ptr<OrbitalBody>> nonCelestialBodies;
+	nonCelestialBodies.reserve(ptrs.size());
+
+	for (std::weak_ptr<OrbitalBody> weak : ptrs)
+	{
+		if (weak.lock())
+		{
+			nonCelestialBodies.push_back(weak.lock());
+		}
+	}
+
+	if (!nonCelestialBodies.empty() && time != 0 && time > _simTime && resolution > 0)
+	{
+		positions.first.reserve(_celestialBodies.size());
+
+		std::vector<std::shared_ptr<OrbitalBody>> celestialBodies;
+		celestialBodies.reserve(_celestialBodies.size());
+
+		for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+		{
+			celestialBodies.push_back(std::make_shared<OrbitalBody>(*body));
+			positions.first.push_back(std::vector<std::pair<std::string, Vector3d>>{});
+		}
+
+		float updates = (time - _simTime) / _dt;
+
+		float r = std::fmod(updates, 1.0);
+		if ( r > 0.01)
+		{
+			updates -= r;
+		}
+
+		unsigned int cycles = updates;
+
+		for (int i = 0; i < cycles; i++)
+		{
+			UpdateCelestialOrbits(_dt, celestialBodies);
+			UpdateNonCelestialOrbits(_dt, celestialBodies, nonCelestialBodies);
+
+			if (i % resolution == 0)
+			{
+				for (int i = 0; i < celestialBodies.size(); i++)
+				{
+					positions.first[i].push_back(std::make_pair(celestialBodies[i]->name, celestialBodies[i]->position));
+				}
+
+				for (int i = 0; i < nonCelestialBodies.size(); i++)
+				{
+					positions.second[i].push_back(std::make_pair(nonCelestialBodies[i]->name, nonCelestialBodies[i]->position));
+				}
 			}
 		}
 	}
