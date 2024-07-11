@@ -43,3 +43,4 @@ public:
 
 void DrawCircleTile(Screen& screen, const Vector2& center, const int& radius, const Tile& tile);
 void DrawRectangleTile(Screen& screen, const Rectangle& rect, const Tile& tile);
+void DrawTriangleTile(Screen& screen, const Vector2& point1, const Vector2& point2, const Vector2& point3, const Tile& tile);

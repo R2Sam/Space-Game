@@ -143,3 +143,84 @@ void DrawRectangleTile(Screen& screen, const Rectangle& rect, const Tile& tile)
         }
     }
 }
+
+void DrawTriangleTile(Screen& screen, const Vector2& point1, const Vector2& point2, const Vector2& point3, const Tile& tile)
+{
+	Vector2 p1 = point1;
+	Vector2 p2 = point2;
+	Vector2 p3 = point3;
+
+    if (p1.y > p2.y)
+    {
+        Vector2 temp = p1;
+        p1 = p2;
+        p2 = temp;
+    }
+    if (p1.y > p3.y)
+    {
+        Vector2 temp = p1;
+        p1 = p3;
+        p3 = temp;
+    }
+    if (p2.y > p3.y)
+    {
+        Vector2 temp = p2;
+        p2 = p3;
+        p3 = temp;
+    }
+
+    float dx1, dx2, dx3;
+    if (p2.y - p1.y > 0)
+    {
+        dx1 = (p2.x - p1.x) / (p2.y - p1.y);
+    }
+
+    else
+    {
+        dx1 = 0;
+    }
+
+    if (p3.y - p1.y > 0)
+    {
+        dx2 = (p3.x - p1.x) / (p3.y - p1.y);
+    }
+
+    else
+    {
+        dx2 = 0;
+    }
+
+    if (p3.y - p2.y > 0)
+    {
+        dx3 = (p3.x - p2.x) / (p3.y - p2.y);
+    }
+
+    else
+    {
+        dx3 = 0;
+    }
+
+    float x1 = p1.x;
+    float x2 = p1.x;
+
+    for (int y = p1.y; y <= p2.y; y++)
+    {
+        for (int x = static_cast<int>(x1); x <= static_cast<int>(x2); x++)
+        {
+            screen.ChangeTile(tile, Vector2{x, y});
+        }
+        x1 += dx1;
+        x2 += dx2;
+    }
+
+    x1 = p2.x;
+    for (int y = p2.y; y <= p3.y; y++)
+    {
+        for (int x = static_cast<int>(x1); x <= static_cast<int>(x2); x++)
+        {
+            screen.ChangeTile(tile, Vector2{x, y});
+        }
+        x1 += dx3;
+        x2 += dx2;
+    }
+}
