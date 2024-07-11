@@ -165,6 +165,4 @@ void MainLevelScene::Draw()
 	}
 
 	_screen->Draw();
-
-	DrawFPS(10, 10);
 }

@@ -716,6 +716,18 @@ bool OrbitalSimulation::SaveBodiesToFile(const std::string& path)
     for (const std::shared_ptr<OrbitalBody>& body : _celestialBodies)
     {
         output += "--Name:" + body->name;
+
+        output += "--Parent:";
+
+        if (auto parent = body->parent.lock())
+        {
+        	output += parent->name;
+        }
+
+        else
+        {
+        	output += "Null";
+        }
         
         output += "--CelestialBody:" + std::to_string(true);
         
@@ -777,6 +789,7 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 	int vectorFill = 0;
 
 	std::string name;
+	std::string parent;
 	bool CelestialBody;
 
 	Vector3d pos;
@@ -818,6 +831,25 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 				}
 
 				name += fileText[ii];
+			}
+		}
+
+		if (buffer == "--Parent:")
+		{
+			for (int ii = i + 1; ii < fileLength; ii++)
+			{
+				// Ending of a section with "--"
+				if (fileText[ii] == '-' && fileText[ii + 1] == '-')
+				{
+					buffer.clear();
+					buffer.shrink_to_fit();
+
+					i = ii - 1;
+
+					break;					
+				}
+
+				parent += fileText[ii];
 			}
 		}
 
@@ -998,10 +1030,31 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 
 		if (buffer == "---")
 		{
-			OrbitalBody body(name, CelestialBody, pos, vel, mass, radius);
-	 		AddBody(body);
+			std::weak_ptr<OrbitalBody> parentPtr;
+
+			for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+			{
+				if (body->name == parent)
+				{
+					parentPtr = body;
+					break;
+				}
+			}
+
+			if (auto parentBody = parentPtr.lock())
+			{
+				pos += parentBody->position;
+			}
+
+			else
+			{
+				OrbitalBody body(name, CelestialBody, pos, vel, mass, radius);
+	 			AddBody(body);
+			}
+
 
 	 		name.clear();
+	 		parent.clear();
 	 		buffer.clear();
 		}
 	}
