@@ -22,12 +22,9 @@ MainLevelScene::~MainLevelScene()
 
 void MainLevelScene::Init()
 {	
-	_backgroundTile = std::make_pair("\u2588", std::make_pair(WHITE, WHITE));
-
-	_bodyTile = std::make_pair("\u2588", std::make_pair(BLUE, BLUE));
-	_craftTile = std::make_pair("\u25A0", std::make_pair(RED, YELLOW));
-
-	_screen = std::make_unique<Screen>(_services, _backgroundTile, "../data/Mx437_IBM_EGA_8x8.ttf", 8);
+	_bodyTile = {"█", {BLUE, BLUE}};
+	_craftTile = {"•", {RED, WHITE}};
+	_mapTile = {"☺", {GRAY, DARKGRAY}};
 }
 
 void MainLevelScene::AddSelfAsListener()
@@ -47,9 +44,7 @@ void MainLevelScene::OnEvent(std::shared_ptr<const Event>& event)
 void MainLevelScene::GetInputs()
 {
 	_keys.clear();
-	_keysDown.clear();
 	_mouseKeys.clear();
-	_mouseKeysDown.clear();
 
 	// Get keys pressed
 	while (int i = GetKeyPressed())
@@ -79,6 +74,76 @@ void MainLevelScene::GetInputs()
 	_mouseDelta = GetMouseDelta();
 
 	_mouseScroll = GetMouseWheelMove();
+}
+
+void MainLevelScene::UpdateMap()
+{
+	_planets = _services->GetGameStateHandler()->orbitalSimulation->GetBodiesV(true);
+	_craft = _services->GetGameStateHandler()->orbitalSimulation->GetBodiesV(false);
+}
+
+void MainLevelScene::DrawMap()
+{
+	static const float scaleFactor = 8e-06;
+
+	Vector2 screenSize = _services->GetGameStateHandler()->screen->GetScreenSize();
+	Screen& screen = *_services->GetGameStateHandler()->screen;
+
+	const static Vector2 center = {(screenSize.x / 4) * 3, screenSize.y / 4};
+
+	const static Rectangle rec = CenteredRectangle(Rectangle {0, 0, 32, 32}, center);
+
+	DrawRectangleTile(screen, rec, _mapTile);
+
+	for (std::weak_ptr<OrbitalBody>& ptr : _planets)
+	{
+		std::shared_ptr<OrbitalBody> body = ptr.lock();
+
+		if (!body)
+		{
+			continue;
+		}
+
+		Vector3d v = body->position * scaleFactor;
+
+		Vector2 pos = {std::round(v.x + center.x), std::round(-v.z + center.y)};
+
+		if (body->radius * scaleFactor > 1)
+		{
+			DrawCircleTile(screen, pos, body->radius * scaleFactor, _bodyTile);
+		}
+
+		else
+		{
+			_services->GetGameStateHandler()->screen->ChangeTile(_bodyTile, pos);
+		}
+	}
+
+	for (std::weak_ptr<OrbitalBody>& ptr : _craft)
+	{
+		std::shared_ptr<OrbitalBody> body = ptr.lock();
+
+		if (!body)
+		{
+			continue;
+		}
+
+		Vector3d v = body->position * scaleFactor;
+
+		Vector2 pos = {std::round(v.x + center.x), std::round(-v.z + center.y)};
+
+		if (body->radius * scaleFactor > 1)
+		{
+			DrawCircleTile(screen, pos, body->radius * scaleFactor, _craftTile);
+		}
+
+		else
+		{
+			_services->GetGameStateHandler()->screen->ChangeTile(_craftTile, pos);
+		}
+	}
+
+	DrawTextTile(screen, Vector2{0, 0}, _services->GetGameStateHandler()->orbitalSimulation->GetDate(), BLACK, WHITE);
 }
 
 void MainLevelScene::Enter()
@@ -114,8 +179,7 @@ void MainLevelScene::Update()
 		return;
 	}
 
-	_planets = _services->GetGameStateHandler()->orbitalSimulation->GetBodiesV(true);
-	_craft = _services->GetGameStateHandler()->orbitalSimulation->GetBodiesV(false);
+	UpdateMap();
 }
 
 void MainLevelScene::Draw()
@@ -123,46 +187,7 @@ void MainLevelScene::Draw()
 	if(!_active)
 		return;
 
-	static const float scaleFactor = 1.4e-05;
+	DrawMap();
 
-	Vector2 screenSize = _screen->GetScreenSize();
-
-	//DrawRectangleTile(*_screen, Rectangle{0, 0, screenSize.x, screenSize.y}, _backgroundTile);
-
-	for (std::weak_ptr<OrbitalBody>& ptr : _planets)
-	{
-		std::shared_ptr<OrbitalBody> body = ptr.lock();
-
-		if (!body)
-		{
-			continue;
-		}
-
-		Vector3d v = body->position * scaleFactor;
-
-		Vector2 pos = {std::round(v.x + screenSize.x / 2), std::round(-v.z + screenSize.y / 2)};
-
-		DrawCircleTile(*_screen, pos, body->radius * scaleFactor, _bodyTile);
-	}
-
-	for (std::weak_ptr<OrbitalBody>& ptr : _craft)
-	{
-		std::shared_ptr<OrbitalBody> body = ptr.lock();
-
-		if (!body)
-		{
-			continue;
-		}
-
-		Vector3d v = body->position * scaleFactor;
-
-		Vector2 pos = {std::round(v.x + screenSize.x / 2), std::round(-v.z + screenSize.y / 2)};
-
-		if (body->radius * scaleFactor >= 1)
-		{
-			DrawCircleTile(*_screen, pos, body->radius * scaleFactor, _craftTile);
-		}
-	}
-
-	_screen->Draw();
+	_services->GetGameStateHandler()->screen->Draw();
 }

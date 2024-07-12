@@ -16,13 +16,13 @@ Services::~Services()
 
 void Services::Init()
 {
-	// Create event and game handler
-	_eventHandler = std::make_unique<EventHandler>();
-	_gameStateHandler = std::make_unique<GameStateHandler>(this);
-
 	// Get inital values
 	screenWidth = GetScreenWidth();
 	screenHeight = GetScreenHeight();
+	
+	// Create event and game handler
+	_eventHandler = std::make_unique<EventHandler>();
+	_gameStateHandler = std::make_unique<GameStateHandler>(this);
 }
 
 void Services::UpdateVar()

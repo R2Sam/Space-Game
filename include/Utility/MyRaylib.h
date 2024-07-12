@@ -52,6 +52,13 @@ void UnloadShadowmapRenderTexture(RenderTexture2D target);
 std::chrono::time_point<std::chrono::high_resolution_clock> BeginTimer();
 void EndTimer(const std::chrono::time_point<std::chrono::high_resolution_clock>& startTime, const std::string& name, const bool& percentage, const int& frames);
 
+// Check if two colors are same
+bool ColorCompare(const Color& a, const Color& b);
+
+// Date or seconds from a certain epoch
+double DateToSeconds(const std::string& dateString, const std::tm& epoch);
+std::string SecondsToDate(double seconds, const std::tm& epoch);
+
 // Vector2 made out of doubles
 struct Vector2d
 {

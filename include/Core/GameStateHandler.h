@@ -4,6 +4,7 @@
 class Services;
 
 class OrbitalSimulation;
+class Screen;
 
 class GameStateHandler : public EventListener
 {
@@ -19,6 +20,7 @@ public:
 
 	// Sim
 	std::unique_ptr<OrbitalSimulation> orbitalSimulation;
+	std::unique_ptr<Screen> screen;
 
 	GameStateHandler(Services* servicesIn);
 	~GameStateHandler();

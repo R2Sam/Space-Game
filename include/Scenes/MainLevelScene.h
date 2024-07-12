@@ -13,8 +13,8 @@
 class Services;
 
 class OrbitalBody;
-class Screen;
 
+class Screen;
 #define Tile std::pair<std::string, std::pair<Color, Color>>
 
 class MainLevelScene : public Scene, public EventListener
@@ -37,14 +37,12 @@ private:
 	std::unordered_map<int, bool> _mouseKeys;
 	std::unordered_map<int, bool> _mouseKeysDown;
 
-	// Screen
-	std::unique_ptr<Screen> _screen;
-
-	Tile _backgroundTile;
+	// Tiles
 	Tile _bodyTile;
 	Tile _craftTile;
+	Tile _mapTile;
 
-	// TEST SIM
+	// Bodies
 	std::vector<std::weak_ptr<OrbitalBody>> _planets;
 	std::vector<std::weak_ptr<OrbitalBody>> _craft;
 
@@ -54,6 +52,9 @@ private:
 	void OnEvent(std::shared_ptr<const Event>& event) override;
 
 	void GetInputs() override;
+
+	void UpdateMap();
+	void DrawMap();
 
 public:
 

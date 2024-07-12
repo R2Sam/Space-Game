@@ -1,5 +1,7 @@
+--Date:00:00:00:01:01:2020
 --Name:Jupiter--Parent:Null--CelestialBody:1--Position:0,0,0--Velocity:0,0,0--Mass:1.90e27--Radius:69911---
---Name:Io-Parent:Jupiter--CelestialBody:1--Position:421700,0,0--Velocity:0,0,17.33--Mass:8.93e22--Radius:1821---
---Name:Europa-Parent:Jupiter--CelestialBody:1--Position:671100,0,0--Velocity:0,0,13.74--Mass:4.80e22--Radius:1561---
---Name:Ganymede-Parent:Jupiter--CelestialBody:1--Position:1070400,0,0--Velocity:0,0,10.88--Mass:1.48e23--Radius:2634---
---Name:Callisto-Parent:Jupiter--CelestialBody:1--Position:1882700,0,0--Velocity:0,0,8.20--Mass:1.08e23--Radius:2410---
+--Name:Io--Parent:Jupiter--CelestialBody:1--Position:421700,0,0--Velocity:0,0,17.33--Mass:8.93e22--Radius:1821---
+--Name:Europa--Parent:Jupiter--CelestialBody:1--Position:671100,0,0--Velocity:0,0,13.74--Mass:4.80e22--Radius:1561---
+--Name:Ganymede--Parent:Jupiter--CelestialBody:1--Position:1070400,0,0--Velocity:0,0,10.88--Mass:1.48e23--Radius:2634---
+--Name:Callisto--Parent:Jupiter--CelestialBody:1--Position:1882700,0,0--Velocity:0,0,8.20--Mass:1.08e23--Radius:2410---
+--Name:Spacecraft--Parent:Callisto--CelestialBody:0--Position:2510,0,0--Velocity:0,0,0.7--Mass:1000--Radius:1---

@@ -1,6 +1,9 @@
 #include "Screen.h"
 
+#include "MyRaylib.h"
 #include "Services.h"
+
+#include <cmath>
 
 Screen::Screen(Services* services, const Tile& backgroundTile, const std::string fontPath, const int& fontSize) : _services(services), _backgroundTile(backgroundTile)
 {
@@ -12,7 +15,7 @@ Screen::Screen(Services* services, const Tile& backgroundTile, const std::string
 
 	UnloadCodepoints(points);
 
-	_texture = LoadRenderTexture(_services->screenWidth, _services->screenHeight);
+    _texture = LoadRenderTexture(_services->screenWidth, _services->screenHeight);
 
 	Init();
 }
@@ -29,6 +32,7 @@ void Screen::Init()
 	_screenSize.y = _services->screenHeight / _font.baseSize;
 
 	_screen.reserve(_screenSize.x);
+    //_changedTiles.reserve(_screenSize.x * _screenSize.y);
 
 	for (int i = 0; i < _screenSize.x; i++)
 	{
@@ -62,23 +66,42 @@ Vector2 Screen::GetScreenSize()
 	return _screenSize;
 }
 
+Tile Screen::GetBackgroundTile() 
+{
+    return _backgroundTile;
+}
+
 void Screen::Reset()
 {
-	for (int x = 0; x < _screenSize.x; x++)
-	{
-		for (int y = 0; y < _screenSize.y; y++)
-		{
-			_screen[x][y] = _backgroundTile;
-		}
-	}
+    BeginTextureMode(_texture);
+
+    for (int x = 0; x < _screenSize.x; x++)
+    {
+        for (int y = 0; y < _screenSize.y; y++)
+        {
+            if (!CompareTile(_screen[x][y], _backgroundTile))
+            {
+                _screen[x][y] = _backgroundTile;
+                DrawRectangle(x * _font.baseSize, y * _font.baseSize, _font.baseSize, _font.baseSize, _screen[x][y].second.second);
+                DrawTextEx(_font, _screen[x][y].first.c_str(), Vector2{x * _font.baseSize, y * _font.baseSize}, _font.baseSize, 0, _screen[x][y].second.first);
+            }
+        }
+    }
+
+    EndTextureMode();
 }
 
 bool Screen::ChangeTile(const Tile& tile, const Vector2& position) 
 {
-	if (position.x >= 0 && position.x <= _screenSize.x && position.y >= 0 && position.y <= _screenSize.y)
+	if (position.x >= 0 && position.x < _screenSize.x && position.y >= 0 && position.y < _screenSize.y)
 	{
-		_screen[position.x][position.y] = tile;
-		_changedTiles.push_back(position);
+        if (!CompareTile(_screen[position.x][position.y], tile))
+        {
+    		_screen[position.x][position.y] = tile;
+    		_changedTiles.emplace(position.x, position.y);
+
+            return true;
+        }
 	}
 
 	return false;
@@ -88,10 +111,10 @@ void Screen::Draw()
 {
 	BeginTextureMode(_texture);
 
-	for (const Vector2& vec : _changedTiles)
+	for (const std::pair<int, int>& pair : _changedTiles)
 	{
-		DrawRectangle(vec.x * _font.baseSize, vec.y * _font.baseSize, _font.baseSize, _font.baseSize, _screen[vec.x][vec.y].second.second);
-		DrawTextEx(_font, _screen[vec.x][vec.y].first.c_str(), Vector2{vec.x * _font.baseSize, vec.y * _font.baseSize}, _font.baseSize, 0, _screen[vec.x][vec.y].second.first);
+		DrawRectangle(pair.first * _font.baseSize, pair.second * _font.baseSize, _font.baseSize, _font.baseSize, _screen[pair.first][pair.second].second.second);
+		DrawTextEx(_font, _screen[pair.first][pair.second].first.c_str(), Vector2{pair.first * _font.baseSize, pair.second * _font.baseSize}, _font.baseSize, 0, _screen[pair.first][pair.second].second.first);
 	}
 
 	EndTextureMode();
@@ -101,6 +124,43 @@ void Screen::Draw()
 	DrawTextureRec(_texture.texture, Rectangle{0, 0, _texture.texture.width, -_texture.texture.height}, Vector2{0, 0}, WHITE);
 }
 
+bool CompareTile(const Tile& a, const Tile& b)
+{
+    if (a.first == b.first &&
+        ColorCompare(a.second.first, b.second.first) &&
+        ColorCompare(a.second.second, b.second.second))
+    {
+        return true;
+    }
+
+    else
+    {
+        return false;
+    }
+}
+
+void DrawTextTile(Screen& screen, const Vector2& start, const std::string& string, const Color& textColor, const Color& backgroundColor)
+{
+    Tile tile;
+    tile.second.first = textColor;
+    tile.second.second = backgroundColor;
+
+    Vector2 pos = start;
+
+    for (int i = 0; i < string.size(); i++)
+    {
+        if (string[i] == '\n')
+        {
+            pos.y += 1;
+        }
+
+        tile.first = string[i];
+        screen.ChangeTile(tile, pos);
+
+        pos.x += 1;
+    }
+}
+
 void DrawCircleTile(Screen& screen, const Vector2& center, const int& radius, const Tile& tile)
 {
     int x = radius;
@@ -108,8 +168,7 @@ void DrawCircleTile(Screen& screen, const Vector2& center, const int& radius, co
     int decisionOver2 = 1 - x;
     
     while (y <= x)
-    {
-       	
+    {    	
       	screen.ChangeTile(tile, Vector2{center.x + x, center.y + y});
 	    screen.ChangeTile(tile, Vector2{center.x + y, center.y + x});
 	    screen.ChangeTile(tile, Vector2{center.x - y, center.y + x});
@@ -125,10 +184,44 @@ void DrawCircleTile(Screen& screen, const Vector2& center, const int& radius, co
         {
             decisionOver2 += 2 * y + 1;
         }
+
         else
         {
             x--;
             decisionOver2 += 2 * (y - x) + 1;
+        }
+    }
+}
+
+void DrawLineTile(Screen& screen, const Vector2& start, const Vector2& end, const Tile& tile)
+{
+    int x0 = start.x;
+    int y0 = start.y;
+    int x1 = end.x;
+    int y1 = end.y;
+
+    int dx = std::abs(x1 - x0);
+    int dy = std::abs(y1 - y0);
+    int sx = (x0 < x1) ? 1 : -1;
+    int sy = (y0 < y1) ? 1 : -1;
+    int err = dx - dy;
+
+    while (true)
+    {
+        screen.ChangeTile(tile, {x0, y0});
+
+        if (x0 == x1 && y0 == y1) break;
+
+        int e2 = 2 * err;
+        if (e2 > -dy)
+        {
+            err -= dy;
+            x0 += sx;
+        }
+        if (e2 < dx)
+        {
+            err += dx;
+            y0 += sy;
         }
     }
 }
@@ -156,12 +249,14 @@ void DrawTriangleTile(Screen& screen, const Vector2& point1, const Vector2& poin
         p1 = p2;
         p2 = temp;
     }
+
     if (p1.y > p3.y)
     {
         Vector2 temp = p1;
         p1 = p3;
         p3 = temp;
     }
+
     if (p2.y > p3.y)
     {
         Vector2 temp = p2;
@@ -209,6 +304,7 @@ void DrawTriangleTile(Screen& screen, const Vector2& point1, const Vector2& poin
         {
             screen.ChangeTile(tile, Vector2{x, y});
         }
+
         x1 += dx1;
         x2 += dx2;
     }
@@ -220,6 +316,7 @@ void DrawTriangleTile(Screen& screen, const Vector2& point1, const Vector2& poin
         {
             screen.ChangeTile(tile, Vector2{x, y});
         }
+
         x1 += dx3;
         x2 += dx2;
     }

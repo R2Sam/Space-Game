@@ -20,6 +20,8 @@ const double GKm = 6.674e-20;
 
 const unsigned int maxSpeed = 100000;
 
+const std::tm epoch = {0, 0, 0, 1, 0, 120, -1};
+
 OrbitalSimulation::OrbitalSimulation(Services* servicesIn, const double& timeStep, const bool& km) : _services(servicesIn), _dt(timeStep), _km(km)
 {
 	AddSelfAsListener();
@@ -571,6 +573,11 @@ double OrbitalSimulation::GetTime() const
 	return _simTime;
 }
 
+std::string OrbitalSimulation::GetDate() const
+{
+	return SecondsToDate(_simTime, epoch);
+}
+
 void OrbitalSimulation::SpeedControl(bool& increse, bool& decrese)
 {
 
@@ -715,6 +722,8 @@ bool OrbitalSimulation::SaveBodiesToFile(const std::string& path)
 
     for (const std::shared_ptr<OrbitalBody>& body : _celestialBodies)
     {
+    	output += "--Date:" + SecondsToDate(_simTime, epoch) + "\n";
+
         output += "--Name:" + body->name;
 
         output += "--Parent:";
@@ -788,6 +797,8 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 	double numbers[3];
 	int vectorFill = 0;
 
+	std::string date;
+
 	std::string name;
 	std::string parent;
 	bool CelestialBody;
@@ -797,8 +808,6 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 
 	double mass;
 	double radius;
-
-	_simTime = 0;
 
 	_celestialBodies.clear();
 	_celestialBodies.shrink_to_fit();
@@ -815,6 +824,24 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 
 		buffer += fileText[i];
 
+		if (buffer == "--Date:")
+		{
+			for (int ii = i + 1; ii < fileLength; ii++)
+			{
+				// Ending of a section with "--"
+				if (fileText[ii] == '-' && fileText[ii + 1] == '-')
+				{
+					buffer.clear();
+
+					i = ii - 1;
+
+					break;					
+				}
+
+				date += fileText[ii];
+			}
+		}
+
 		if (buffer == "--Name:")
 		{
 			for (int ii = i + 1; ii < fileLength; ii++)
@@ -823,7 +850,6 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 				if (fileText[ii] == '-' && fileText[ii + 1] == '-')
 				{
 					buffer.clear();
-					buffer.shrink_to_fit();
 
 					i = ii - 1;
 
@@ -842,7 +868,6 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 				if (fileText[ii] == '-' && fileText[ii + 1] == '-')
 				{
 					buffer.clear();
-					buffer.shrink_to_fit();
 
 					i = ii - 1;
 
@@ -891,10 +916,8 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 					pos = {numbers[0], numbers[1], numbers[2]};
 
 					buffer.clear();
-					buffer.shrink_to_fit();
 
 					numberS.clear();
-					numberS.shrink_to_fit();
 
 					vectorFill = 0;
 
@@ -917,7 +940,6 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 					vectorFill++;
 
 					numberS.clear();
-					numberS.shrink_to_fit();
 
 					continue;
 				}
@@ -945,10 +967,8 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 					vel = {numbers[0], numbers[1], numbers[2]};
 
 					buffer.clear();
-					buffer.shrink_to_fit();
 
 					numberS.clear();
-					numberS.shrink_to_fit();
 
 					vectorFill = 0;
 
@@ -971,7 +991,6 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 					vectorFill++;
 
 					numberS.clear();
-					numberS.shrink_to_fit();
 
 					continue;
 				}
@@ -990,10 +1009,8 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 					mass = std::stod(numberS);
 
 					buffer.clear();
-					buffer.shrink_to_fit();
 
 					numberS.clear();
-					numberS.shrink_to_fit();
 
 					i = ii - 1;
 
@@ -1014,10 +1031,8 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 					radius = std::stod(numberS);
 
 					buffer.clear();
-					buffer.shrink_to_fit();
 
 					numberS.clear();
-					numberS.shrink_to_fit();
 
 					i = ii - 1;
 
@@ -1044,19 +1059,24 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 			if (auto parentBody = parentPtr.lock())
 			{
 				pos += parentBody->position;
+				vel += parentBody->velocity;
 			}
 
-			else
-			{
-				OrbitalBody body(name, CelestialBody, pos, vel, mass, radius);
-	 			AddBody(body);
-			}
-
+			OrbitalBody body(name, CelestialBody, pos, vel, mass, radius);
+ 			AddBody(body);
 
 	 		name.clear();
 	 		parent.clear();
 	 		buffer.clear();
 		}
+	}
+
+	_simTime = DateToSeconds(date, epoch);
+
+	if (_simTime < 0)
+	{
+		Log("Bad Date: " + date);
+		_simTime = 0;
 	}
 
 	UnloadFileText(fileText);

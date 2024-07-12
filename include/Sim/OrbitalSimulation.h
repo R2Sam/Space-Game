@@ -84,6 +84,7 @@ public:
 
 	// Get time since sim start in s
 	double GetTime() const;
+	std::string GetDate() const;
 
 	// Input bools that will control speed
 	void SpeedControl(bool& increse, bool& decrese);

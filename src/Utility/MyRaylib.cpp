@@ -4,7 +4,7 @@
 #include "Log.h"
 
 #include <iomanip>
-#include <sstream> 
+#include <sstream>
 
 void DrawTextureScale(const Texture2D& texture, const Vector2& position, const float& scale, const Color& color)
 {
@@ -226,4 +226,82 @@ void EndTimer(const std::chrono::time_point<std::chrono::high_resolution_clock>&
             Log("Section " << name << " took: " << elapsed.count() * 1000 << "ms");
         }
     }
+}
+
+bool ColorCompare(const Color& a, const Color& b)
+{
+    if (a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a)
+    {
+        return true;
+    }
+
+    else
+    {
+        return false;
+    }
+}
+
+double DateToSeconds(const std::string& dateString, const std::tm& epoch)
+{
+    std::tm timeinfo = {};
+    std::tm ep = epoch;
+    std::istringstream ss(dateString);
+
+    ss >> timeinfo.tm_sec;
+    ss.ignore(1, ':');
+    ss >> timeinfo.tm_min;
+    ss.ignore(1, ':');
+    ss >> timeinfo.tm_hour;
+    ss.ignore(1, ':');
+    ss >> timeinfo.tm_mday;
+    ss.ignore(1, ':');
+    ss >> timeinfo.tm_mon;
+    ss.ignore(1, ':');
+    ss >> timeinfo.tm_year;
+
+    timeinfo.tm_mon--;
+    timeinfo.tm_year -= 1900;
+    timeinfo.tm_isdst = -1;
+
+    time_t timeSinceEpoch = mktime(&timeinfo);
+    time_t epochSeconds = mktime(&ep);
+
+    if (timeSinceEpoch == -1 || epochSeconds == -1)
+    {
+        return -1;
+    }
+
+    return difftime(timeSinceEpoch, epochSeconds);
+}
+
+std::string SecondsToDate(double seconds, const std::tm& epoch)
+{
+    std::tm ep = epoch;
+    time_t epochSeconds = mktime(&ep);
+
+    if (epochSeconds == -1)
+    {
+        return "";
+    }
+
+    time_t requestedTime = epochSeconds + static_cast<time_t>(seconds);
+    std::tm* timeinfo = std::localtime(&requestedTime);
+
+    if (timeinfo == nullptr)
+    {
+        return "";
+    }
+
+    timeinfo->tm_mon++;
+    timeinfo->tm_year += 1900;
+
+    std::ostringstream oss;
+    oss << std::setfill('0') << std::setw(2) << timeinfo->tm_sec << ':'
+        << std::setfill('0') << std::setw(2) << timeinfo->tm_min << ':'
+        << std::setfill('0') << std::setw(2) << timeinfo->tm_hour << ':'
+        << std::setfill('0') << std::setw(2) << timeinfo->tm_mday << ':'
+        << std::setfill('0') << std::setw(2) << timeinfo->tm_mon << ':'
+        << std::setw(4) << timeinfo->tm_year;
+
+    return oss.str();
 }
