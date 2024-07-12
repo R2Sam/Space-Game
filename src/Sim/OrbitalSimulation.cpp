@@ -1047,12 +1047,15 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 		{
 			std::weak_ptr<OrbitalBody> parentPtr;
 
-			for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+			if (parent != "Null")
 			{
-				if (body->name == parent)
+				for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
 				{
-					parentPtr = body;
-					break;
+					if (body->name == parent)
+					{
+						parentPtr = body;
+						break;
+					}
 				}
 			}
 

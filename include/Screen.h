@@ -15,7 +15,7 @@ struct PairHash {
     std::size_t operator()(const std::pair<T, U> &p) const {
         auto hash1 = std::hash<T>{}(p.first);
         auto hash2 = std::hash<U>{}(p.second);
-        return hash1 ^ (hash2 << 1);  // Combine hashes in a simple way
+        return hash1 ^ (hash2 << 1);
     }
 };
 
@@ -34,6 +34,7 @@ private:
 	Services* _services;
 
 	Vector2 _screenSize;
+	Rectangle _rec;
 
 	std::vector<std::vector<Tile>> _screen;
 	std::unordered_set<std::pair<int, int>, PairHash, PairEqual> _changedTiles;
@@ -47,12 +48,13 @@ private:
 
 public:
 
-	Screen(Services* services, const Tile& backgroundTile, const std::string fontPath, const int& fontSize);
+	Screen(const Rectangle& rec, const Tile& backgroundTile, const std::string fontPath, const int& fontSize);
 	~Screen();
 
 	Vector2 GetScreenSize();
 	Tile GetBackgroundTile();
 
+	void Resize(const Rectangle& rec, const int& size);
 	void Reset();
 
 	bool ChangeTile(const Tile& tile, const Vector2& position);

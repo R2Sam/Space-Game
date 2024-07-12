@@ -5,17 +5,16 @@
 
 #include <cmath>
 
-Screen::Screen(Services* services, const Tile& backgroundTile, const std::string fontPath, const int& fontSize) : _services(services), _backgroundTile(backgroundTile)
+Screen::Screen(const Rectangle& rec, const Tile& backgroundTile, const std::string fontPath, const int& fontSize) : _rec(rec), _backgroundTile(backgroundTile)
 {
 	int count;
 	int* points = LoadCodepoints("☺☻♥♦♣♠•◘○◙♂♀♪♫☼►◄↕‼¶§▬↨↑↓→←∟↔▲▼!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~⌂ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀ɑϐᴦᴨ∑ơµᴛɸϴΩẟ∞∅∈∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ", &count);
 
 	_font = LoadFontEx("../data/Mx437_IBM_EGA_8x8.ttf", fontSize, points, count);
-	SetTextLineSpacing(0);
 
 	UnloadCodepoints(points);
 
-    _texture = LoadRenderTexture(_services->screenWidth, _services->screenHeight);
+    _texture = LoadRenderTexture(_rec.width, _rec.height);
 
 	Init();
 }
@@ -28,11 +27,11 @@ Screen::~Screen()
 
 void Screen::Init() 
 {
-	_screenSize.x = _services->screenWidth / _font.baseSize;
-	_screenSize.y = _services->screenHeight / _font.baseSize;
+	_screenSize.x = _rec.width / _font.baseSize;
+    _screenSize.y = _rec.height / _font.baseSize;
 
 	_screen.reserve(_screenSize.x);
-    //_changedTiles.reserve(_screenSize.x * _screenSize.y);
+    _changedTiles.reserve(_screenSize.x * _screenSize.y);
 
 	for (int i = 0; i < _screenSize.x; i++)
 	{
@@ -69,6 +68,53 @@ Vector2 Screen::GetScreenSize()
 Tile Screen::GetBackgroundTile() 
 {
     return _backgroundTile;
+}
+
+void Screen::Resize(const Rectangle& rec, const int& size) 
+{
+    if (size <= 0)
+    {
+        return;
+    }
+
+    _rec = rec;
+    _font.baseSize = size;
+
+    _screenSize.x = _rec.width / _font.baseSize;
+    _screenSize.y = _rec.height / _font.baseSize;
+
+    _screen.clear();
+    _screen.reserve(_screenSize.x);
+    _screen.shrink_to_fit();
+
+    _changedTiles.clear();
+    _changedTiles.reserve(_screenSize.x * _screenSize.y);
+
+    for (int i = 0; i < _screenSize.x; i++)
+    {
+        _screen.push_back(std::vector<Tile>{});
+        _screen[i].reserve(_screenSize.y);
+
+        for (int j = 0; j < _screenSize.y; j++)
+        {
+            _screen[i].push_back(_backgroundTile);
+        }
+    }
+
+    BeginTextureMode(_texture);
+
+    ClearBackground(WHITE);
+
+    for (int x = 0; x < _screenSize.x; x++)
+    {
+        for (int y = 0; y < _screenSize.y; y++)
+        {
+            DrawRectangle(x * _font.baseSize, y * _font.baseSize, _font.baseSize, _font.baseSize, _screen[x][y].second.second);
+            DrawTextEx(_font, _screen[x][y].first.c_str(), Vector2{x * _font.baseSize, y * _font.baseSize}, _font.baseSize, 0, _screen[x][y].second.first);
+        }
+    }
+
+    EndTextureMode();
 }
 
 void Screen::Reset()
@@ -121,7 +167,7 @@ void Screen::Draw()
 
 	_changedTiles.clear();
 
-	DrawTextureRec(_texture.texture, Rectangle{0, 0, _texture.texture.width, -_texture.texture.height}, Vector2{0, 0}, WHITE);
+	DrawTextureRec(_texture.texture, Rectangle{0, 0, _texture.texture.width, -_texture.texture.height}, Vector2{_rec.x, _rec.y}, WHITE);
 }
 
 bool CompareTile(const Tile& a, const Tile& b)

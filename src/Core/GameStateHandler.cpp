@@ -24,7 +24,7 @@ void GameStateHandler::Init()
 	orbitalSimulation->LoadBodiesFromFile("../data/bodies.txt");
 
 	Tile backgroundTile = std::make_pair("\u2588", std::make_pair(WHITE, WHITE));
-	screen = std::make_unique<Screen>(_services, backgroundTile, "../data/Mx437_IBM_EGA_8x8.ttf", 8);
+	screen = std::make_unique<Screen>(Rectangle{0, 0, _services->screenWidth, _services->screenHeight}, backgroundTile, "../data/Mx437_IBM_EGA_8x8.ttf", 16);
 }
 
 void GameStateHandler::AddSelfAsListener()

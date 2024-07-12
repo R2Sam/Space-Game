@@ -84,40 +84,17 @@ void MainLevelScene::UpdateMap()
 
 void MainLevelScene::DrawMap()
 {
-	static const float scaleFactor = 8e-06;
+	static const float scaleFactor = 2.0e-08;
 
 	Vector2 screenSize = _services->GetGameStateHandler()->screen->GetScreenSize();
 	Screen& screen = *_services->GetGameStateHandler()->screen;
 
-	const static Vector2 center = {(screenSize.x / 4) * 3, screenSize.y / 4};
+	const static Vector2 center = {(screenSize.x / 2), screenSize.y / 2};
 
 	const static Rectangle rec = CenteredRectangle(Rectangle {0, 0, 32, 32}, center);
 
-	DrawRectangleTile(screen, rec, _mapTile);
-
-	for (std::weak_ptr<OrbitalBody>& ptr : _planets)
-	{
-		std::shared_ptr<OrbitalBody> body = ptr.lock();
-
-		if (!body)
-		{
-			continue;
-		}
-
-		Vector3d v = body->position * scaleFactor;
-
-		Vector2 pos = {std::round(v.x + center.x), std::round(-v.z + center.y)};
-
-		if (body->radius * scaleFactor > 1)
-		{
-			DrawCircleTile(screen, pos, body->radius * scaleFactor, _bodyTile);
-		}
-
-		else
-		{
-			_services->GetGameStateHandler()->screen->ChangeTile(_bodyTile, pos);
-		}
-	}
+	//DrawRectangleTile(screen, rec, _mapTile);
+	screen.Reset();
 
 	for (std::weak_ptr<OrbitalBody>& ptr : _craft)
 	{
@@ -140,6 +117,30 @@ void MainLevelScene::DrawMap()
 		else
 		{
 			_services->GetGameStateHandler()->screen->ChangeTile(_craftTile, pos);
+		}
+	}
+
+	for (std::weak_ptr<OrbitalBody>& ptr : _planets)
+	{
+		std::shared_ptr<OrbitalBody> body = ptr.lock();
+
+		if (!body)
+		{
+			continue;
+		}
+
+		Vector3d v = body->position * scaleFactor;
+
+		Vector2 pos = {std::round(v.x + center.x), std::round(-v.z + center.y)};
+
+		if (body->radius * scaleFactor > 1)
+		{
+			DrawCircleTile(screen, pos, body->radius * scaleFactor, _bodyTile);
+		}
+
+		else
+		{
+			_services->GetGameStateHandler()->screen->ChangeTile(_bodyTile, pos);
 		}
 	}
 
