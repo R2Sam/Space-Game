@@ -1,0 +1,2 @@
+Somehow you have found your way here.
+This is my small project using Raylib. Where the main inspirations are KSP but N-body and Expanse combat and ships and all in beautiful ASCII. The idea has barely gotten off the ground with a mostly working sim and ASCII display logic, some badly uncommented code and many a shenanigans.

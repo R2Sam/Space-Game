@@ -8,6 +8,7 @@
 #include "Screen.h"
 
 #include "MyRaylib.h"
+#include "Log.h"
 
 MainLevelScene::MainLevelScene(Services* servicesIn) : _services(servicesIn)
 {
@@ -22,8 +23,9 @@ MainLevelScene::~MainLevelScene()
 
 void MainLevelScene::Init()
 {	
-	_bodyTile = {"█", {BLUE, BLUE}};
-	_craftTile = {"•", {RED, WHITE}};
+	_bodyTile = {"○", {GREEN, LIGHTGRAY}};
+	_sunTile =  {"☼", {ORANGE, YELLOW}};
+	_craftTile = {"•", {RED, LIGHTGRAY}};
 	_mapTile = {"☺", {GRAY, DARKGRAY}};
 }
 
@@ -84,7 +86,7 @@ void MainLevelScene::UpdateMap()
 
 void MainLevelScene::DrawMap()
 {
-	static const float scaleFactor = 2.0e-08;
+	static const float scaleFactor = 4.0e-08;
 
 	Vector2 screenSize = _services->GetGameStateHandler()->screen->GetScreenSize();
 	Screen& screen = *_services->GetGameStateHandler()->screen;
@@ -133,26 +135,52 @@ void MainLevelScene::DrawMap()
 
 		Vector2 pos = {std::round(v.x + center.x), std::round(-v.z + center.y)};
 
-		if (body->radius * scaleFactor > 1)
+		if (body->name == "Sun")
 		{
-			DrawCircleTile(screen, pos, body->radius * scaleFactor, _bodyTile);
+			if (body->radius * scaleFactor > 1)
+			{
+				DrawCircleTile(screen, pos, body->radius * scaleFactor, _sunTile);
+			}
+
+			else
+			{
+				_services->GetGameStateHandler()->screen->ChangeTile(_sunTile, pos);
+			}
 		}
 
 		else
 		{
-			_services->GetGameStateHandler()->screen->ChangeTile(_bodyTile, pos);
+			if (body->radius * scaleFactor > 1)
+			{
+				DrawCircleTile(screen, pos, body->radius * scaleFactor, _bodyTile);
+			}
+
+			else
+			{
+				_services->GetGameStateHandler()->screen->ChangeTile(_bodyTile, pos);
+			}
 		}
 	}
 
-	DrawTextTile(screen, Vector2{0, 0}, _services->GetGameStateHandler()->orbitalSimulation->GetDate(), BLACK, WHITE);
+	DrawTextTile(screen, Vector2{0, 0}, "Date:" + _services->GetGameStateHandler()->orbitalSimulation->GetDate(), BLACK, LIGHTGRAY);
+	DrawTextTile(screen, Vector2{0, 1}, "FPS:" + std::to_string(GetFPS()), BLACK, LIGHTGRAY);
 }
 
 void MainLevelScene::Enter()
 {
 	_active = true;
 
-	_services->GetGameStateHandler()->orbitalSimulation->LoadBodiesFromFile("../data/bodies.txt");
-	_services->GetGameStateHandler()->orbitalSimulation->SetSpeed(100000);
+	if (FileExists("../data/Bodies-Save.txt"))
+	{
+		_services->GetGameStateHandler()->orbitalSimulation->LoadBodiesFromFile("../data/Bodies-Save.txt");
+	}
+
+	else
+	{
+		_services->GetGameStateHandler()->orbitalSimulation->LoadBodiesFromFile("../data/Bodies.txt");
+	}
+
+	_services->GetGameStateHandler()->orbitalSimulation->SetSpeed(25000);
 }
 
 void MainLevelScene::Exit()
@@ -160,6 +188,7 @@ void MainLevelScene::Exit()
 	_active = false;
 
 	_services->GetGameStateHandler()->orbitalSimulation->SetSpeed(0);
+	_services->GetGameStateHandler()->orbitalSimulation->SaveBodiesToFile("../data/Bodies-Save.txt");
 }
 
 void MainLevelScene::Update()
@@ -178,6 +207,33 @@ void MainLevelScene::Update()
 
 		_active = false;
 		return;
+	}
+
+	it = _keys.find(KEY_S);
+	if (it != _keys.end())
+	{
+		_services->GetGameStateHandler()->orbitalSimulation->SaveBodiesToFile("../data/Bodies-Save.txt");
+	}
+
+	it = _keys.find(KEY_K);
+	if (it != _keys.end())
+	{
+		if (FileExists("../data/Bodies-Save.txt"))
+		{
+			_services->GetGameStateHandler()->orbitalSimulation->LoadBodiesFromFile("../data/Bodies-Save.txt");
+		}
+
+		else
+		{
+			Log("Bodies-Save does not exist");
+		}
+	}
+
+	it = _keys.find(KEY_L);
+	if (it != _keys.end())
+	{
+		_services->GetGameStateHandler()->orbitalSimulation->SaveBodiesToFile("../data/Bodies-Save.txt");
+		_services->GetGameStateHandler()->orbitalSimulation->LoadBodiesFromFile("../data/Bodies.txt");
 	}
 
 	UpdateMap();

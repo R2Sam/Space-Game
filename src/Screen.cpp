@@ -1,7 +1,8 @@
 #include "Screen.h"
 
 #include "MyRaylib.h"
-#include "Services.h"
+
+#include "raymath.h"
 
 #include <cmath>
 
@@ -187,6 +188,11 @@ bool CompareTile(const Tile& a, const Tile& b)
 
 void DrawTextTile(Screen& screen, const Vector2& start, const std::string& string, const Color& textColor, const Color& backgroundColor)
 {
+    if (string.empty())
+    {
+        return;
+    }
+
     Tile tile;
     tile.second.first = textColor;
     tile.second.second = backgroundColor;
@@ -209,6 +215,11 @@ void DrawTextTile(Screen& screen, const Vector2& start, const std::string& strin
 
 void DrawCircleTile(Screen& screen, const Vector2& center, const int& radius, const Tile& tile)
 {
+    if (radius < 1)
+    {
+        return;
+    }
+
     int x = radius;
     int y = 0;
     int decisionOver2 = 1 - x;
@@ -241,6 +252,11 @@ void DrawCircleTile(Screen& screen, const Vector2& center, const int& radius, co
 
 void DrawLineTile(Screen& screen, const Vector2& start, const Vector2& end, const Tile& tile)
 {
+    if (Vector2Distance(start, end) < 1)
+    {
+        return;
+    }
+
     int x0 = start.x;
     int y0 = start.y;
     int x1 = end.x;
@@ -274,6 +290,11 @@ void DrawLineTile(Screen& screen, const Vector2& start, const Vector2& end, cons
 
 void DrawRectangleTile(Screen& screen, const Rectangle& rect, const Tile& tile)
 {
+    if (rect.width < 1 || rect.height < 1)
+    {
+        return;
+    }
+
     for (int x = rect.x; x < rect.x + rect.width; x++)
     {
         for (int y = rect.y; y < rect.y + rect.height; y++)
@@ -285,6 +306,11 @@ void DrawRectangleTile(Screen& screen, const Rectangle& rect, const Tile& tile)
 
 void DrawTriangleTile(Screen& screen, const Vector2& point1, const Vector2& point2, const Vector2& point3, const Tile& tile)
 {
+    if (Vector2Distance(point1, point2) < 1 || Vector2Distance(point1, point3) < 1 || Vector2Distance(point2, point3) < 1)
+    {
+        return;
+    }
+
 	Vector2 p1 = point1;
 	Vector2 p2 = point2;
 	Vector2 p3 = point3;

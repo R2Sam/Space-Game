@@ -10,7 +10,6 @@
 #include <cassert>
 #include <array>
 #include <cstring>
-#include <vector>
 
 // Unit in m
 const double G = 6.674e-11;
@@ -18,7 +17,7 @@ const double G = 6.674e-11;
 // Unit in Km
 const double GKm = 6.674e-20;
 
-const unsigned int maxSpeed = 100000;
+const unsigned int maxSpeed = 25000;
 
 const std::tm epoch = {0, 0, 0, 1, 0, 120, -1};
 
@@ -81,10 +80,10 @@ Vector3d OrbitalSimulation::CalculateTotalAcceleration(const Vector3d& position,
 			Vector3d r = position - otherBody->position;
 
 			Vector3d v = CalculateAcceleration(r, otherBody->mass);
-			acceleration += v;
+			acceleration += CalculateAcceleration(r, otherBody->mass);
 
 			float strength = v.length();
-			if (topForce.first < strength)
+			if (topForce.first < strength && body->mass < otherBody->mass)
 			{
 				topForce.first = strength;
 				topForce.second = otherBody;
@@ -720,10 +719,10 @@ bool OrbitalSimulation::SaveBodiesToFile(const std::string& path)
 {
     std::string output;
 
+    output += "--Date:" + SecondsToDate(_simTime, epoch) + "\n";
+
     for (const std::shared_ptr<OrbitalBody>& body : _celestialBodies)
     {
-    	output += "--Date:" + SecondsToDate(_simTime, epoch) + "\n";
-
         output += "--Name:" + body->name;
 
         output += "--Parent:";
@@ -742,6 +741,10 @@ bool OrbitalSimulation::SaveBodiesToFile(const std::string& path)
         
         Vector3d pos = body->position;
         output += "--Position:";
+        if (auto parent = body->parent.lock())
+        {
+        	pos -= parent->position;
+        }
         output += std::to_string(pos.x) + "," + std::to_string(pos.y) + "," + std::to_string(pos.z);
  
  		Vector3d vel = body->velocity;       
@@ -758,11 +761,28 @@ bool OrbitalSimulation::SaveBodiesToFile(const std::string& path)
     for (const std::shared_ptr<OrbitalBody>& body : _nonCelestialBodies)
     {
         output += "--Name:" + body->name;
+
+        output += "--Parent:";
+
+        if (auto parent = body->parent.lock())
+        {
+        	output += parent->name;
+        }
+
+        else
+        {
+        	output += "Null";
+        }
+        
         
         output += "--CelestialBody:" + std::to_string(false);
         
-        Vector3d pos = body->position;
+       	Vector3d pos = body->position;
         output += "--Position:";
+        if (auto parent = body->parent.lock())
+        {
+        	pos -= parent->position;
+        }
         output += std::to_string(pos.x) + "," + std::to_string(pos.y) + "," + std::to_string(pos.z);
  
  		Vector3d vel = body->velocity;       

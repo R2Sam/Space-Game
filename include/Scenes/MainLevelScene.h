@@ -39,6 +39,7 @@ private:
 
 	// Tiles
 	Tile _bodyTile;
+	Tile _sunTile;
 	Tile _craftTile;
 	Tile _mapTile;
 

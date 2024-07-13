@@ -6,8 +6,6 @@
 #include <string>
 #include <utility>
 
-class Services;
-
 #define Tile std::pair<std::string, std::pair<Color, Color>>
 
 struct PairHash {
@@ -29,9 +27,6 @@ struct PairEqual {
 class Screen
 {
 private:
-
-	// Ptr of global services
-	Services* _services;
 
 	Vector2 _screenSize;
 	Rectangle _rec;
