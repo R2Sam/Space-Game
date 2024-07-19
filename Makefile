@@ -23,7 +23,7 @@ INCLUDE_FLAGS = $(patsubst %,-I%, $(SUB_DIRS_FILTERED))
 COMMON_FLAGS = -std=c++17 -fmax-errors=5 -Werror -Wno-narrowing -Wno-enum-compare --static -I$(INCLUDE_DIR) $(INCLUDE_FLAGS) -L$(LIB_DIR)
 
 # Debug and Release flags
-DEBUG_FLAGS = -O0 -g
+DEBUG_FLAGS = -O0 -gdwarf-4
 RELEASE_FLAGS = -O2 -s -mwindows
 RES_FLAGS = *.res
 FLAGS =

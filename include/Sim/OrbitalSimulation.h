@@ -7,6 +7,8 @@
 #include <memory>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
+#include <atomic>
 
 class Services;
 
@@ -20,10 +22,7 @@ public:
 	Vector3d position;
 	Vector3d velocity;
 
-	Vector3d posToAdd;
-	Vector3d velToAdd;
-
-	std::weak_ptr<OrbitalBody> parent;
+	std::string parent = "Null";
 
 	Vector3d thrust = Vector3dZero();
 
@@ -43,6 +42,9 @@ private:
 	std::vector<std::shared_ptr<OrbitalBody>> _celestialBodies;
 	std::vector<std::shared_ptr<OrbitalBody>> _nonCelestialBodies;
 
+	std::unordered_set<std::string> _celestialBodiesNames;
+	std::unordered_set<std::string> _nonCelestialBodiesNames;
+
 	double _dt;
 	unsigned int _speed;
 
@@ -54,11 +56,10 @@ private:
 
 	// Calculate acceleration and then numerically integrate
 	inline Vector3d CalculateAcceleration(const Vector3d& r, const double& M) const;
-	Vector3d CalculateTotalAcceleration(const Vector3d& position, std::shared_ptr<OrbitalBody>& body, const std::vector<std::shared_ptr<OrbitalBody>>& bodies) const;
-	void RungeKutta(std::shared_ptr<OrbitalBody>& body, const std::vector<std::shared_ptr<OrbitalBody>>& bodies, const double& h);
+	Vector3d CalculateTotalAcceleration(const Vector3d& position, OrbitalBody& body, const std::vector<OrbitalBody>& bodies) const;
+	void RungeKutta(OrbitalBody& body, const std::vector<OrbitalBody>& bodies, const double& h);
 
-	void UpdateCelestialOrbits(const double& dt, std::vector<std::shared_ptr<OrbitalBody>>& celestialBodies);
-	void UpdateNonCelestialOrbits(const double& dt, std::vector<std::shared_ptr<OrbitalBody>>& celestialBodies, std::vector<std::shared_ptr<OrbitalBody>>& nonCelestialBodies);
+	void UpdateOrbits(std::vector<OrbitalBody>& bodies, std::vector<OrbitalBody>& celestialBodies, const std::atomic<double>& dt, const std::atomic<int>& steps, std::atomic<int>& done,  std::atomic<int>& ready, std::atomic<bool>& start);
 
 public:
 
@@ -74,23 +75,12 @@ public:
 	std::unordered_map<std::string, std::weak_ptr<OrbitalBody>> GetBodies(const bool& celestialBody);
 	std::vector<std::weak_ptr<OrbitalBody>> GetBodiesV(const bool& celestialBody);
 
-	// Get bodies at a certain instance in the future or past
-	std::pair<std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>, std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>> BodiesAtTime(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time);
-	std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr<OrbitalBody>>> BodiesAtTimeV(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time);
-
-	// Get future positions
-	std::vector<std::vector<std::pair<std::string, Vector3d>>> GetCelestialBodiesPos(const double& time, const int& resolution);
-	std::pair<std::vector<std::vector<std::pair<std::string, Vector3d>>>, std::vector<std::vector<std::pair<std::string, Vector3d>>>> GetBodiesPos(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time, const int& resolution);
-
 	// Get time since sim start in s
 	double GetTime() const;
 	std::string GetDate() const;
 
 	// Input bools that will control speed
 	void SpeedControl(bool& increse, bool& decrese);
-
-	// Step
-	void Step(const double& stepSize);
 
 	// Get and set current sim speed
 	unsigned int GetSpeed() const;

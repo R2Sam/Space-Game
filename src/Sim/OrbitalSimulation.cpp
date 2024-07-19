@@ -10,6 +10,8 @@
 #include <cassert>
 #include <array>
 #include <cstring>
+#include <thread>
+#include <deque>
 
 // Unit in m
 const double G = 6.674e-11;
@@ -17,7 +19,7 @@ const double G = 6.674e-11;
 // Unit in Km
 const double GKm = 6.674e-20;
 
-const unsigned int maxSpeed = 25000;
+const unsigned int maxSpeed = 100000;
 
 const std::tm epoch = {0, 0, 0, 1, 0, 120, -1};
 
@@ -62,102 +64,104 @@ inline Vector3d OrbitalSimulation::CalculateAcceleration(const Vector3d& r, cons
 	}
 
 	double length = r.length(); 
-
 	assert(length > 0);
 
 	return -r * ((mu)/(length * length * length));
 }
 
-Vector3d OrbitalSimulation::CalculateTotalAcceleration(const Vector3d& position, std::shared_ptr<OrbitalBody>& body, const std::vector<std::shared_ptr<OrbitalBody>>& bodies) const
+Vector3d OrbitalSimulation::CalculateTotalAcceleration(const Vector3d& position, OrbitalBody& body, const std::vector<OrbitalBody>& bodies) const
 {
 	Vector3d acceleration = Vector3dZero();
-	std::pair<double, std::weak_ptr<OrbitalBody>> topForce = std::make_pair(0, std::weak_ptr<OrbitalBody>());
+	std::pair<double, std::string> topForce = std::make_pair(0, "");
 
-	for (const std::shared_ptr<OrbitalBody>& otherBody : bodies)
+	for (const OrbitalBody& otherBody : bodies)
 	{
-		if (body != otherBody)
+		if (body.name != otherBody.name)
 		{
-			Vector3d r = position - otherBody->position;
+			Vector3d r = position - otherBody.position;
 
-			Vector3d v = CalculateAcceleration(r, otherBody->mass);
-			acceleration += CalculateAcceleration(r, otherBody->mass);
+			Vector3d v = CalculateAcceleration(r, otherBody.mass);
+			acceleration += v;
 
 			float strength = v.length();
-			if (topForce.first < strength && body->mass < otherBody->mass)
+			if (topForce.first < strength && body.mass < otherBody.mass)
 			{
 				topForce.first = strength;
-				topForce.second = otherBody;
+				topForce.second = otherBody.name;
 			}
 		}
 	}
 
-	body->parent = topForce.second;
+	body.parent = topForce.second;
 
 	return acceleration;
 }
 
-void OrbitalSimulation::RungeKutta(std::shared_ptr<OrbitalBody>& body, const std::vector<std::shared_ptr<OrbitalBody>>& bodies, const double& h)
+void OrbitalSimulation::RungeKutta(OrbitalBody& body, const std::vector<OrbitalBody>& bodies, const double& h)
 {
     Vector3d k1v, k2v, k3v, k4v;
     Vector3d k1r, k2r, k3r, k4r;
     double halfH = h / 2;
     double sixthH = h / 6;
 
-    k1v = CalculateTotalAcceleration(body->position, body, bodies);
-    k1r = body->velocity;
+    k1v = CalculateTotalAcceleration(body.position, body, bodies);
+    k1r = body.velocity;
 
-    k2v = CalculateTotalAcceleration(body->position + (k1r * halfH), body, bodies);
-    k2r = body->velocity + (k1v * halfH);
+    k2v = CalculateTotalAcceleration(body.position + (k1r * halfH), body, bodies);
+    k2r = body.velocity + (k1v * halfH);
 
-    k3v = CalculateTotalAcceleration(body->position + (k2r * halfH), body, bodies);
-    k3r = body->velocity + (k2v * halfH);
+    k3v = CalculateTotalAcceleration(body.position + (k2r * halfH), body, bodies);
+    k3r = body.velocity + (k2v * halfH);
 
-    k4v = CalculateTotalAcceleration(body->position + (k3r * h), body, bodies);
-    k4r = body->velocity + (k3v * h);
+    k4v = CalculateTotalAcceleration(body.position + (k3r * h), body, bodies);
+    k4r = body.velocity + (k3v * h);
 
-    body->posToAdd = (k1r + 2 * k2r + 2 * k3r + k4r) * sixthH;
-    body->velToAdd = (k1v + 2 * k2v + 2 * k3v + k4v) * sixthH;
+    body.position += (k1r + 2 * k2r + 2 * k3r + k4r) * sixthH;
+    body.velocity += (k1v + 2 * k2v + 2 * k3v + k4v) * sixthH;
 
-    if (!body->celestialBody && body->thrust != Vector3dZero())
+    if (!body.celestialBody && body.thrust != Vector3dZero())
     {
-    	Vector3d thrust = body->thrust;
+    	Vector3d thrust = body.thrust;
 
     	if (_km)
     	{
     		thrust *= 0.001; 
     	}
 
-    	body->posToAdd = (thrust / body->mass) * h;
-    	body->velToAdd = (thrust / body->mass) * h;
+    	body.position += (thrust / body.mass) * h;
+    	body.velocity += (thrust / body.mass) * h;
     }
 }
 
-void OrbitalSimulation::UpdateCelestialOrbits(const double& dt, std::vector<std::shared_ptr<OrbitalBody>>& celestialBodies)
+void OrbitalSimulation::UpdateOrbits(std::vector<OrbitalBody>& bodies, std::vector<OrbitalBody>& celestialBodies, const std::atomic<double>& dt, const std::atomic<int>& steps, std::atomic<int>& done, std::atomic<int>& ready, std::atomic<bool>& start)
 {
-	for(std::shared_ptr<OrbitalBody>& body : celestialBodies)
-    {
-        RungeKutta(body, celestialBodies, dt);
-    }
+	while (true)
+	{
+		while (done.load(std::memory_order_acquire) != 0)
+		{
+			std::this_thread::yield();
+		}
 
-    for(std::shared_ptr<OrbitalBody>& body : celestialBodies)
-    {
-        body->position += body->posToAdd;
-        body->velocity += body->velToAdd;
-    }
-}
+		ready.fetch_add(1, std::memory_order_release);
 
-void OrbitalSimulation::UpdateNonCelestialOrbits(const double& dt, std::vector<std::shared_ptr<OrbitalBody>>& celestialBodies, std::vector<std::shared_ptr<OrbitalBody>>& nonCelestialBodies)
-{
-	for(std::shared_ptr<OrbitalBody>& body : nonCelestialBodies)
-    {
-    	RungeKutta(body, celestialBodies, dt);
-    }
+		while (!start.load(std::memory_order_acquire))
+		{
+			std::this_thread::yield();
+		}
 
-    for(std::shared_ptr<OrbitalBody>& body : nonCelestialBodies)
-    {
-        body->position += body->posToAdd;
-        body->velocity += body->velToAdd;
-    }
+		if (bodies.size())
+		{
+			for (int i = 0; i < steps; i++)
+			{
+				for (OrbitalBody& body : bodies)
+				{
+					RungeKutta(body, celestialBodies, dt);
+				}
+			}
+		}
+
+		done.fetch_add(1, std::memory_order_release);
+	}
 }
 
 void OrbitalSimulation::Update()
@@ -181,8 +185,6 @@ void OrbitalSimulation::Update()
 			LogColor("FPS bellow 30! Sim will remain at 0.0333 dt", LOG_YELLOW);
 		}
 	}
-
-	unsigned int cycles = 0;
 
 	double dt = _dt;
 
@@ -209,28 +211,226 @@ void OrbitalSimulation::Update()
 		}
 	}
 
-	cycles = updates;
+	const static int threadNumber = 4;
+	static std::vector<std::thread> threads;
 
-	// Update both types of bodies
-	for (int i = 0; i < cycles; i++)
+	static std::atomic<int> steps = updates;
+	steps = updates;
+	static std::atomic<double> timeStep = dt;
+	timeStep = dt;
+
+	static std::atomic<int> done = threadNumber * 2;
+	static std::atomic<int> ready = 0;
+	static std::atomic<bool> start = false;
+
+	static std::deque<std::vector<OrbitalBody>> celestialBodies(threadNumber);
+	static std::deque<std::vector<OrbitalBody>> nonCelestialBodies(threadNumber);
+
+	static std::deque<std::vector<OrbitalBody>> allCelestialBodies1(threadNumber);
+	static std::deque<std::vector<OrbitalBody>> allCelestialBodies2(threadNumber);
+
+	static bool initialReserve = false;
+
+	if (!initialReserve)
 	{
-		UpdateCelestialOrbits(dt, _celestialBodies);
-		UpdateNonCelestialOrbits(dt, _celestialBodies, _nonCelestialBodies);
+		initialReserve = true;
 
-		_simTime += dt;
+		for (int i = 0; i < threadNumber; i++)
+		{
+			threads.push_back(std::thread(&OrbitalSimulation::UpdateOrbits, this, std::ref(celestialBodies[i]), std::ref(allCelestialBodies1[i]), std::ref(timeStep), std::ref(steps), std::ref(done), std::ref(ready), std::ref(start)));
+		}
+
+		for (int i = 0; i < threadNumber; i++)
+		{
+			threads.push_back(std::thread(&OrbitalSimulation::UpdateOrbits, this, std::ref(nonCelestialBodies[i]), std::ref(allCelestialBodies2[i]), std::ref(timeStep), std::ref(steps), std::ref(done), std::ref(ready), std::ref(start)));
+		}
 	}
+
+	static int celestialBodyCount = 0;
+	static int nonCelestialBodyCount = 0;
+
+	if (celestialBodyCount != _celestialBodies.size())
+	{
+		celestialBodyCount = _celestialBodies.size();
+		int count = celestialBodyCount / threadNumber;
+		int remainder = celestialBodyCount % threadNumber;
+
+		int bodyCount = 0;
+
+		for (int i = 0; i < celestialBodies.size(); i++)
+		{
+			celestialBodies[i].clear();
+
+			if (i == celestialBodies.size() - 1)
+			{
+				celestialBodies[i].reserve(count + remainder);
+
+				for (int j = 0; j < (count + remainder); j++)
+				{
+					OrbitalBody body = *_celestialBodies[bodyCount];
+					celestialBodies[i].push_back(body);
+
+					bodyCount++;
+				}
+			}
+
+			else
+			{
+				celestialBodies[i].reserve(count);
+
+				for (int j = 0; j < count; j++)
+				{
+					OrbitalBody body = *_celestialBodies[bodyCount];
+					celestialBodies[i].push_back(body);
+
+					bodyCount++;
+				}
+			}
+		}
+
+		for (std::vector<OrbitalBody>& v : allCelestialBodies1)
+		{
+			v.clear();
+			v.reserve(_celestialBodies.size());
+
+			for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+			{
+				v.push_back(*body);
+			}
+		}
+
+		for (std::vector<OrbitalBody>& v : allCelestialBodies2)
+		{
+			v.clear();
+			v.reserve(_celestialBodies.size());
+
+			for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+			{
+				v.push_back(*body);
+			}
+		}
+	}
+
+	for (std::vector<OrbitalBody>& v : allCelestialBodies1)
+	{
+		for (int i = 0; i < _celestialBodies.size(); i++)
+		{
+			v[i] = *_celestialBodies[i];
+		}
+	}
+
+	for (std::vector<OrbitalBody>& v : allCelestialBodies2)
+	{
+		for (int i = 0; i < _celestialBodies.size(); i++)
+		{
+			v[i] = *_celestialBodies[i];
+		}
+	}
+
+	if (nonCelestialBodyCount != _nonCelestialBodies.size())
+	{
+		nonCelestialBodyCount = _nonCelestialBodies.size();
+		int count = nonCelestialBodyCount / threadNumber;
+		int remainder = nonCelestialBodyCount % threadNumber;
+
+		int bodyCount = 0;
+
+		for (int i = 0; i < nonCelestialBodies.size(); i++)
+		{
+			nonCelestialBodies[i].clear();
+
+			if (i == nonCelestialBodies.size() - 1)
+			{
+				nonCelestialBodies[i].reserve(count + remainder);
+
+				for (int j = 0; j < (count + remainder); j++)
+				{
+					OrbitalBody body = *_nonCelestialBodies[bodyCount];
+					nonCelestialBodies[i].push_back(body);
+
+					bodyCount++;
+				}
+			}
+
+			else
+			{
+				nonCelestialBodies[i].reserve(count);
+
+				for (int j = 0; j < count; j++)
+				{
+					OrbitalBody body = *_nonCelestialBodies[bodyCount];
+					nonCelestialBodies[i].push_back(body);
+
+					bodyCount++;
+				}
+			}
+		}
+	}
+
+	start.store(false, std::memory_order_release);
+	ready.store(0, std::memory_order_release);
+	done.store(0, std::memory_order_release);
+	while (ready.load(std::memory_order_acquire) < threadNumber * 2 )
+	{
+		std::this_thread::yield();
+	}
+	start.store(true, std::memory_order_release);
+	while (done.load(std::memory_order_acquire) < threadNumber * 2 )
+	{
+		std::this_thread::yield();
+	}
+
+	int bodyCount = 0;
+	for (int i = 0; i < celestialBodies.size(); i++)
+	{
+		for (int j = 0; j < celestialBodies[i].size(); j++)
+		{
+			assert(celestialBodies[i][j].name == _celestialBodies[bodyCount]->name);
+			*_celestialBodies[bodyCount] = celestialBodies[i][j];
+			bodyCount++;
+		}
+	}
+
+	bodyCount = 0;
+	for (int i = 0; i < nonCelestialBodies.size(); i++)
+	{
+		for (int j = 0; j < nonCelestialBodies[i].size(); j++)
+		{
+			assert(nonCelestialBodies[i][j].name == _nonCelestialBodies[bodyCount]->name);
+			*_nonCelestialBodies[bodyCount] = nonCelestialBodies[i][j];
+			bodyCount++;
+		}
+	}
+
+	_simTime += dt * updates;
 }
 
 std::weak_ptr<OrbitalBody> OrbitalSimulation::AddBody(OrbitalBody& body)
 {
 	if (body.celestialBody)
 	{
+		auto it = _celestialBodiesNames.find(body.name);
+		if (it != _celestialBodiesNames.end())
+		{
+			LogColor("Body: " << body.name << " is already in the sim", LOG_YELLOW);
+			return std::weak_ptr<OrbitalBody>();
+		}
+
 		_celestialBodies.push_back(std::make_shared<OrbitalBody>(body));
+		_celestialBodiesNames.insert(body.name);
 
 		return _celestialBodies[_celestialBodies.size() - 1];
 	}
 
+	auto it = _nonCelestialBodiesNames.find(body.name);
+	if (it != _nonCelestialBodiesNames.end())
+	{
+		LogColor("Body: " << body.name << " is already in the sim", LOG_YELLOW);
+		return std::weak_ptr<OrbitalBody>();
+	}
+
 	_nonCelestialBodies.push_back(std::make_shared<OrbitalBody>(body));
+	_nonCelestialBodiesNames.insert(body.name);
 
 	return _nonCelestialBodies[_nonCelestialBodies.size() - 1];
 }
@@ -248,6 +448,7 @@ bool OrbitalSimulation::RemoveBody(std::weak_ptr<OrbitalBody> bodyPtr)
 		{
 			if (_celestialBodies[i] == bodyPtr.lock())
 			{
+				_celestialBodiesNames.erase(bodyPtr.lock()->name);
 				_celestialBodies.erase(_celestialBodies.begin() + i);
 				return true;
 			}
@@ -260,6 +461,7 @@ bool OrbitalSimulation::RemoveBody(std::weak_ptr<OrbitalBody> bodyPtr)
 	{
 		if (_nonCelestialBodies[i] == bodyPtr.lock())
 		{
+			_nonCelestialBodiesNames.erase(bodyPtr.lock()->name);
 			_nonCelestialBodies.erase(_nonCelestialBodies.begin() + i);
 			return true;
 		}
@@ -314,259 +516,6 @@ std::vector<std::weak_ptr<OrbitalBody>> OrbitalSimulation::GetBodiesV(const bool
 	return bodies;
 }
 
-std::pair<std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>, std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>> OrbitalSimulation::BodiesAtTime(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time)
-{
-	std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr<OrbitalBody>>> bodies;
-
-	std::vector<std::shared_ptr<OrbitalBody>> nonCelestialBodies;
-	nonCelestialBodies.reserve(ptrs.size());
-
-	for (std::weak_ptr<OrbitalBody> weak : ptrs)
-	{
-		if (weak.lock())
-		{
-			nonCelestialBodies.push_back(weak.lock());
-		}
-	}
-
-	bodies.first.reserve(_celestialBodies.size());
-	for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
-	{
-		bodies.first.push_back(std::make_shared<OrbitalBody>(*body));
-	}
-
-	bodies.second.reserve(_nonCelestialBodies.size());
-	for (std::shared_ptr<OrbitalBody>& body : nonCelestialBodies)
-	{
-		bodies.second.push_back(std::make_shared<OrbitalBody>(*body));
-	}
-
-	std::pair<std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>, std::unordered_map<std::string, std::shared_ptr<OrbitalBody>>> output;
-
-	if (time > _simTime)
-	{
-		float updates = (time - _simTime) / _dt;
-
-		float r = std::fmod(updates, 1.0);
-		if ( r > 0.01)
-		{
-			updates -= r;
-		}
-
-		unsigned int cycles = updates;
-
-		for (int i = 0; i < cycles; i++)
-		{
-			UpdateCelestialOrbits(_dt, bodies.first);
-			UpdateNonCelestialOrbits(_dt, bodies.first, bodies.second);
-		}
-	}
-
-	else if (time < _simTime)
-	{
-		float updates = (_simTime - time) / _dt;
-
-		float r = std::fmod(updates, 1.0);
-		if ( r > 0.01)
-		{
-			updates -= r;
-		}
-
-		unsigned int cycles = updates;
-
-		for (int i = 0; i < cycles; i++)
-		{
-			UpdateCelestialOrbits(-_dt, bodies.first);
-			UpdateNonCelestialOrbits(-_dt, bodies.first, bodies.second);
-		}
-	}
-
-	for (std::shared_ptr<OrbitalBody>& body : bodies.first)
-	{
-		output.first.insert(std::make_pair(body->name, std::move(body)));
-	}
-
-	for (std::shared_ptr<OrbitalBody>& body : bodies.second)
-	{
-		output.second.insert(std::make_pair(body->name, std::move(body)));
-	}
-
-	return output;
-}
-
-std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr<OrbitalBody>>> OrbitalSimulation::BodiesAtTimeV(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time)
-{
-	std::pair<std::vector<std::shared_ptr<OrbitalBody>>, std::vector<std::shared_ptr<OrbitalBody>>> bodies;
-
-	std::vector<std::shared_ptr<OrbitalBody>> nonCelestialBodies;
-	nonCelestialBodies.reserve(ptrs.size());
-
-	for (std::weak_ptr<OrbitalBody> weak : ptrs)
-	{
-		if (weak.lock())
-		{
-			nonCelestialBodies.push_back(weak.lock());
-		}
-	}
-
-	bodies.first.reserve(_celestialBodies.size());
-	for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
-	{
-		bodies.first.push_back(std::make_shared<OrbitalBody>(*body));
-	}
-
-	bodies.second.reserve(_nonCelestialBodies.size());
-	for (std::shared_ptr<OrbitalBody>& body : nonCelestialBodies)
-	{
-		bodies.second.push_back(std::make_shared<OrbitalBody>(*body));
-	}
-
-	if (time > _simTime)
-	{
-		float updates = (time - _simTime) / _dt;
-
-		float r = std::fmod(updates, 1.0);
-		if ( r > 0.01)
-		{
-			updates -= r;
-		}
-
-		unsigned int cycles = updates;
-
-		for (int i = 0; i < cycles; i++)
-		{
-			UpdateCelestialOrbits(_dt, bodies.first);
-			UpdateNonCelestialOrbits(_dt, bodies.first, bodies.second);
-		}
-	}
-
-	else if (time < _simTime)
-	{
-		float updates = (_simTime - time) / _dt;
-
-		float r = std::fmod(updates, 1.0);
-		if ( r > 0.01)
-		{
-			updates -= r;
-		}
-
-		unsigned int cycles = updates;
-
-		for (int i = 0; i < cycles; i++)
-		{
-			UpdateCelestialOrbits(-_dt, bodies.first);
-			UpdateNonCelestialOrbits(-_dt, bodies.first, bodies.second);
-		}
-	}
-
-	return bodies;
-}
-
-std::vector<std::vector<std::pair<std::string, Vector3d>>> OrbitalSimulation::GetCelestialBodiesPos(const double& time, const int& resolution)
-{
-	std::vector<std::vector<std::pair<std::string, Vector3d>>> positions;
-
-	if (time != 0 && time > _simTime && resolution > 0)
-	{
-		positions.reserve(_celestialBodies.size());
-
-		std::vector<std::shared_ptr<OrbitalBody>> celestialBodies;
-		celestialBodies.reserve(_celestialBodies.size());
-
-		for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
-		{
-			celestialBodies.push_back(std::make_shared<OrbitalBody>(*body));
-			positions.push_back(std::vector<std::pair<std::string, Vector3d>>{});
-		}
-
-		float updates = (time - _simTime) / _dt;
-
-		float r = std::fmod(updates, 1.0);
-		if ( r > 0.01)
-		{
-			updates -= r;
-		}
-
-		unsigned int cycles = updates;
-
-		for (int i = 0; i < cycles; i++)
-		{
-			UpdateCelestialOrbits(_dt, celestialBodies);
-
-			if (i % resolution == 0)
-			{
-				for (int i = 0; i < celestialBodies.size(); i++)
-				{
-					positions[i].push_back(std::make_pair(celestialBodies[i]->name, celestialBodies[i]->position));
-				}
-			}
-		}
-	}
-
-	return positions;
-}
-
-std::pair<std::vector<std::vector<std::pair<std::string, Vector3d>>>, std::vector<std::vector<std::pair<std::string, Vector3d>>>> OrbitalSimulation::GetBodiesPos(std::vector<std::weak_ptr<OrbitalBody>>& ptrs, const double& time, const int& resolution)
-{
-	std::pair<std::vector<std::vector<std::pair<std::string, Vector3d>>>, std::vector<std::vector<std::pair<std::string, Vector3d>>>> positions;
-
-	std::vector<std::shared_ptr<OrbitalBody>> nonCelestialBodies;
-	nonCelestialBodies.reserve(ptrs.size());
-
-	for (std::weak_ptr<OrbitalBody> weak : ptrs)
-	{
-		if (weak.lock())
-		{
-			nonCelestialBodies.push_back(weak.lock());
-		}
-	}
-
-	if (!nonCelestialBodies.empty() && time != 0 && time > _simTime && resolution > 0)
-	{
-		positions.first.reserve(_celestialBodies.size());
-
-		std::vector<std::shared_ptr<OrbitalBody>> celestialBodies;
-		celestialBodies.reserve(_celestialBodies.size());
-
-		for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
-		{
-			celestialBodies.push_back(std::make_shared<OrbitalBody>(*body));
-			positions.first.push_back(std::vector<std::pair<std::string, Vector3d>>{});
-		}
-
-		float updates = (time - _simTime) / _dt;
-
-		float r = std::fmod(updates, 1.0);
-		if ( r > 0.01)
-		{
-			updates -= r;
-		}
-
-		unsigned int cycles = updates;
-
-		for (int i = 0; i < cycles; i++)
-		{
-			UpdateCelestialOrbits(_dt, celestialBodies);
-			UpdateNonCelestialOrbits(_dt, celestialBodies, nonCelestialBodies);
-
-			if (i % resolution == 0)
-			{
-				for (int i = 0; i < celestialBodies.size(); i++)
-				{
-					positions.first[i].push_back(std::make_pair(celestialBodies[i]->name, celestialBodies[i]->position));
-				}
-
-				for (int i = 0; i < nonCelestialBodies.size(); i++)
-				{
-					positions.second[i].push_back(std::make_pair(nonCelestialBodies[i]->name, nonCelestialBodies[i]->position));
-				}
-			}
-		}
-	}
-
-	return positions;
-}
-
 double OrbitalSimulation::GetTime() const
 {
 	return _simTime;
@@ -599,52 +548,6 @@ void OrbitalSimulation::SpeedControl(bool& increse, bool& decrese)
 			speedIndex--;
 			_speed = speeds[speedIndex];
 		}
-	}
-}
-
-void OrbitalSimulation::Step(const double& stepSize)
-{
-	if (_speed != 0 || stepSize == 0)
-	{
-		return;
-	}
-
-	float time = _simTime + stepSize;
-	float updates = (time - _simTime) / _dt;
-
-	float dt;
-
-	if (stepSize > 0)
-	{
-		dt = _dt;
-	}
-
-	else
-	{
-		dt = -_dt;
-	}
-
-	float r = std::fmod(updates, 1.0);
-	if ( r > 0.01)
-	{
-		updates -= r;
-	}
-
-	unsigned int cycles = updates;
-
-	for (int i = 0; i < cycles; i++)
-	{
-		UpdateCelestialOrbits(dt, _celestialBodies);
-		UpdateNonCelestialOrbits(dt, _celestialBodies, _nonCelestialBodies);
-	}
-
-	if ( r > 0.01)
-	{
-
-		dt *= r;
-
-		UpdateCelestialOrbits(dt, _celestialBodies);
-		UpdateNonCelestialOrbits(dt, _celestialBodies, _nonCelestialBodies);
 	}
 }
 
@@ -727,9 +630,12 @@ bool OrbitalSimulation::SaveBodiesToFile(const std::string& path)
 
         output += "--Parent:";
 
-        if (auto parent = body->parent.lock())
+        bool parent = false;
+        auto it = _celestialBodiesNames.find(body->parent);
+        if (it != _celestialBodiesNames.end())
         {
-        	output += parent->name;
+        	output += body->parent;
+        	parent = true;
         }
 
         else
@@ -741,14 +647,34 @@ bool OrbitalSimulation::SaveBodiesToFile(const std::string& path)
         
         Vector3d pos = body->position;
         output += "--Position:";
-        if (auto parent = body->parent.lock())
+
+        if (parent)
         {
-        	pos -= parent->position;
-        }
+	        for (int i = 0; i < _celestialBodies.size(); i++)
+			{
+				if (_celestialBodies[i]->name == body->parent)
+				{
+					pos -= _celestialBodies[i]->position;
+				}
+			}
+		}
+
         output += std::to_string(pos.x) + "," + std::to_string(pos.y) + "," + std::to_string(pos.z);
  
  		Vector3d vel = body->velocity;       
         output += "--Velocity:";
+
+        if (parent)
+        {
+	        for (int i = 0; i < _celestialBodies.size(); i++)
+			{
+				if (_celestialBodies[i]->name == body->parent)
+				{
+					vel -= _celestialBodies[i]->velocity;
+				}
+			}
+		}
+
         output += std::to_string(vel.x) + "," + std::to_string(vel.y) + "," + std::to_string(vel.z);
         
         output += "--Mass:" + std::to_string(body->mass);
@@ -764,9 +690,12 @@ bool OrbitalSimulation::SaveBodiesToFile(const std::string& path)
 
         output += "--Parent:";
 
-        if (auto parent = body->parent.lock())
+        bool parent = false;
+        auto it = _nonCelestialBodiesNames.find(body->parent);
+        if (it != _nonCelestialBodiesNames.end())
         {
-        	output += parent->name;
+        	output += body->parent;
+        	parent = true;
         }
 
         else
@@ -779,14 +708,34 @@ bool OrbitalSimulation::SaveBodiesToFile(const std::string& path)
         
        	Vector3d pos = body->position;
         output += "--Position:";
-        if (auto parent = body->parent.lock())
+
+        if (parent)
         {
-        	pos -= parent->position;
-        }
+	        for (int i = 0; i < _celestialBodies.size(); i++)
+			{
+				if (_celestialBodies[i]->name == body->parent)
+				{
+					pos -= _celestialBodies[i]->position;
+				}
+			}
+		}
+
         output += std::to_string(pos.x) + "," + std::to_string(pos.y) + "," + std::to_string(pos.z);
  
  		Vector3d vel = body->velocity;       
         output += "--Velocity:";
+
+        if (parent)
+        {
+	        for (int i = 0; i < _celestialBodies.size(); i++)
+			{
+				if (_celestialBodies[i]->name == body->parent)
+				{
+					vel -= _celestialBodies[i]->velocity;
+				}
+			}
+		}
+
         output += std::to_string(vel.x) + "," + std::to_string(vel.y) + "," + std::to_string(vel.z);
         
         output += "--Mass:" + std::to_string(body->mass);
@@ -1065,27 +1014,21 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 
 		if (buffer == "---")
 		{
-			std::weak_ptr<OrbitalBody> parentPtr;
-
 			if (parent != "Null")
 			{
-				for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+				for (int i = 0; i < _celestialBodies.size(); i++)
 				{
-					if (body->name == parent)
+					if (_celestialBodies[i]->name == parent)
 					{
-						parentPtr = body;
+						pos += _celestialBodies[i]->position;
+						vel += _celestialBodies[i]->velocity;
 						break;
 					}
 				}
 			}
 
-			if (auto parentBody = parentPtr.lock())
-			{
-				pos += parentBody->position;
-				vel += parentBody->velocity;
-			}
-
 			OrbitalBody body(name, CelestialBody, pos, vel, mass, radius);
+			body.parent = parent;
  			AddBody(body);
 
 	 		name.clear();

@@ -26,7 +26,7 @@ void MainLevelScene::Init()
 	_bodyTile = {"○", {GREEN, LIGHTGRAY}};
 	_sunTile =  {"☼", {ORANGE, YELLOW}};
 	_craftTile = {"•", {RED, LIGHTGRAY}};
-	_mapTile = {"☺", {GRAY, DARKGRAY}};
+	_mapTile = {"♪", {GRAY, DARKGRAY}};
 }
 
 void MainLevelScene::AddSelfAsListener()
@@ -180,7 +180,7 @@ void MainLevelScene::Enter()
 		_services->GetGameStateHandler()->orbitalSimulation->LoadBodiesFromFile("../data/Bodies.txt");
 	}
 
-	_services->GetGameStateHandler()->orbitalSimulation->SetSpeed(25000);
+	_services->GetGameStateHandler()->orbitalSimulation->SetSpeed(100000);
 }
 
 void MainLevelScene::Exit()
