@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <atomic>
+#include <thread>
 
 class Services;
 
@@ -45,6 +46,13 @@ private:
 	std::unordered_set<std::string> _celestialBodiesNames;
 	std::unordered_set<std::string> _nonCelestialBodiesNames;
 
+	// Threads
+	std::vector<std::thread> _threads;
+	std::atomic<int> _threadNumber = 4;
+
+	std::atomic<int> _done = _threadNumber * 2;
+	std::atomic<int> _ready = 0;
+
 	double _dt;
 	unsigned int _speed;
 
@@ -67,6 +75,8 @@ public:
 	~OrbitalSimulation();
 
 	void Update();
+
+	void ResetThreads();
 
 	std::weak_ptr<OrbitalBody> AddBody(OrbitalBody& body);
 	bool RemoveBody(std::weak_ptr<OrbitalBody> bodyPtr);

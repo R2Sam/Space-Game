@@ -133,20 +133,21 @@ void OrbitalSimulation::RungeKutta(OrbitalBody& body, const std::vector<OrbitalB
     }
 }
 
-void OrbitalSimulation::UpdateOrbits(std::vector<OrbitalBody>& bodies, std::vector<OrbitalBody>& celestialBodies, const std::atomic<double>& dt, const std::atomic<int>& steps, std::atomic<int>& done, std::atomic<int>& ready, std::atomic<bool>& start)
+void OrbitalSimulation::UpdateOrbits(std::vector<OrbitalBody>& bodies, std::vector<OrbitalBody>& celestialBodies, const std::atomic<double>& dt, const std::atomic<int>& steps, std::atomic<int>& _done, std::atomic<int>& _ready, std::atomic<bool>& start)
 {
 	while (true)
 	{
-		while (done.load(std::memory_order_acquire) != 0)
+		while (_done.load(std::memory_order_acquire) != 0)
 		{
-			std::this_thread::yield();
+			_done.wait(_threadNumber * 2);
 		}
 
-		ready.fetch_add(1, std::memory_order_release);
+		_ready.fetch_add(1, std::memory_order_release);
+		_ready.notify_all();
 
 		while (!start.load(std::memory_order_acquire))
 		{
-			std::this_thread::yield();
+			start.wait(false);
 		}
 
 		if (bodies.size())
@@ -160,7 +161,8 @@ void OrbitalSimulation::UpdateOrbits(std::vector<OrbitalBody>& bodies, std::vect
 			}
 		}
 
-		done.fetch_add(1, std::memory_order_release);
+		_done.fetch_add(1, std::memory_order_release);
+		_done.notify_all();
 	}
 }
 
@@ -211,38 +213,31 @@ void OrbitalSimulation::Update()
 		}
 	}
 
-	const static int threadNumber = 4;
-	static std::vector<std::thread> threads;
-
 	static std::atomic<int> steps = updates;
 	steps = updates;
 	static std::atomic<double> timeStep = dt;
 	timeStep = dt;
 
-	static std::atomic<int> done = threadNumber * 2;
-	static std::atomic<int> ready = 0;
 	static std::atomic<bool> start = false;
 
-	static std::deque<std::vector<OrbitalBody>> celestialBodies(threadNumber);
-	static std::deque<std::vector<OrbitalBody>> nonCelestialBodies(threadNumber);
+	static std::deque<std::vector<OrbitalBody>> celestialBodies(_threadNumber);
+	static std::deque<std::vector<OrbitalBody>> nonCelestialBodies(_threadNumber);
 
-	static std::deque<std::vector<OrbitalBody>> allCelestialBodies1(threadNumber);
-	static std::deque<std::vector<OrbitalBody>> allCelestialBodies2(threadNumber);
+	static std::deque<std::vector<OrbitalBody>> allCelestialBodies1(_threadNumber);
+	static std::deque<std::vector<OrbitalBody>> allCelestialBodies2(_threadNumber);
 
-	static bool initialReserve = false;
-
-	if (!initialReserve)
+	if (_threads.empty())
 	{
-		initialReserve = true;
+		_threads.reserve(_threadNumber * 2);
 
-		for (int i = 0; i < threadNumber; i++)
+		for (int i = 0; i < _threadNumber; i++)
 		{
-			threads.push_back(std::thread(&OrbitalSimulation::UpdateOrbits, this, std::ref(celestialBodies[i]), std::ref(allCelestialBodies1[i]), std::ref(timeStep), std::ref(steps), std::ref(done), std::ref(ready), std::ref(start)));
+			_threads.push_back(std::thread(&OrbitalSimulation::UpdateOrbits, this, std::ref(celestialBodies[i]), std::ref(allCelestialBodies1[i]), std::ref(timeStep), std::ref(steps), std::ref(_done), std::ref(_ready), std::ref(start)));
 		}
 
-		for (int i = 0; i < threadNumber; i++)
+		for (int i = 0; i < _threadNumber; i++)
 		{
-			threads.push_back(std::thread(&OrbitalSimulation::UpdateOrbits, this, std::ref(nonCelestialBodies[i]), std::ref(allCelestialBodies2[i]), std::ref(timeStep), std::ref(steps), std::ref(done), std::ref(ready), std::ref(start)));
+			_threads.push_back(std::thread(&OrbitalSimulation::UpdateOrbits, this, std::ref(nonCelestialBodies[i]), std::ref(allCelestialBodies2[i]), std::ref(timeStep), std::ref(steps), std::ref(_done), std::ref(_ready), std::ref(start)));
 		}
 	}
 
@@ -252,8 +247,8 @@ void OrbitalSimulation::Update()
 	if (celestialBodyCount != _celestialBodies.size())
 	{
 		celestialBodyCount = _celestialBodies.size();
-		int count = celestialBodyCount / threadNumber;
-		int remainder = celestialBodyCount % threadNumber;
+		int count = celestialBodyCount / _threadNumber;
+		int remainder = celestialBodyCount % _threadNumber;
 
 		int bodyCount = 0;
 
@@ -330,8 +325,8 @@ void OrbitalSimulation::Update()
 	if (nonCelestialBodyCount != _nonCelestialBodies.size())
 	{
 		nonCelestialBodyCount = _nonCelestialBodies.size();
-		int count = nonCelestialBodyCount / threadNumber;
-		int remainder = nonCelestialBodyCount % threadNumber;
+		int count = nonCelestialBodyCount / _threadNumber;
+		int remainder = nonCelestialBodyCount % _threadNumber;
 
 		int bodyCount = 0;
 
@@ -368,17 +363,23 @@ void OrbitalSimulation::Update()
 	}
 
 	start.store(false, std::memory_order_release);
-	ready.store(0, std::memory_order_release);
-	done.store(0, std::memory_order_release);
-	while (ready.load(std::memory_order_acquire) < threadNumber * 2 )
+	start.notify_all();
+	_ready.store(0, std::memory_order_release);
+	_ready.notify_all();
+	_done.store(0, std::memory_order_release);
+	_done.notify_all();
+	while (_ready.load(std::memory_order_acquire) < _threadNumber * 2 )
 	{
-		std::this_thread::yield();
+		_ready.wait(0);
 	}
 	start.store(true, std::memory_order_release);
-	while (done.load(std::memory_order_acquire) < threadNumber * 2 )
+	start.notify_all();
+	while (_done.load(std::memory_order_acquire) < _threadNumber * 2 )
 	{
-		std::this_thread::yield();
+		_done.wait(0);
 	}
+
+	OrbitalBody* sun;
 
 	int bodyCount = 0;
 	for (int i = 0; i < celestialBodies.size(); i++)
@@ -387,6 +388,10 @@ void OrbitalSimulation::Update()
 		{
 			assert(celestialBodies[i][j].name == _celestialBodies[bodyCount]->name);
 			*_celestialBodies[bodyCount] = celestialBodies[i][j];
+			if (_celestialBodies[bodyCount]->name == "Sun")
+			{
+				sun = _celestialBodies[bodyCount].get();
+			}
 			bodyCount++;
 		}
 	}
@@ -402,7 +407,32 @@ void OrbitalSimulation::Update()
 		}
 	}
 
+	for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+	{
+		body->position -= sun->position;
+		body->velocity -= sun->velocity;
+	}
+
+	for (std::shared_ptr<OrbitalBody>& body : _nonCelestialBodies)
+	{
+		body->position -= sun->position;
+		body->velocity -= sun->velocity;
+	}
+
+	sun->position = Vector3dZero();
+	sun->velocity = Vector3dZero();
+
 	_simTime += dt * updates;
+}
+
+void OrbitalSimulation::ResetThreads()
+{
+	_threads.clear();
+
+	_ready.store(_threadNumber * 2, std::memory_order_release);
+	_ready.notify_all();
+	_done.store(_threadNumber * 2, std::memory_order_release);
+	_done.notify_all();
 }
 
 std::weak_ptr<OrbitalBody> OrbitalSimulation::AddBody(OrbitalBody& body)
@@ -412,7 +442,7 @@ std::weak_ptr<OrbitalBody> OrbitalSimulation::AddBody(OrbitalBody& body)
 		auto it = _celestialBodiesNames.find(body.name);
 		if (it != _celestialBodiesNames.end())
 		{
-			LogColor("Body: " << body.name << " is already in the sim", LOG_YELLOW);
+			LogColor("Body: " << body.name << " is al_ready in the sim", LOG_YELLOW);
 			return std::weak_ptr<OrbitalBody>();
 		}
 
@@ -425,7 +455,7 @@ std::weak_ptr<OrbitalBody> OrbitalSimulation::AddBody(OrbitalBody& body)
 	auto it = _nonCelestialBodiesNames.find(body.name);
 	if (it != _nonCelestialBodiesNames.end())
 	{
-		LogColor("Body: " << body.name << " is already in the sim", LOG_YELLOW);
+		LogColor("Body: " << body.name << " is al_ready in the sim", LOG_YELLOW);
 		return std::weak_ptr<OrbitalBody>();
 	}
 
@@ -548,6 +578,11 @@ void OrbitalSimulation::SpeedControl(bool& increse, bool& decrese)
 			speedIndex--;
 			_speed = speeds[speedIndex];
 		}
+	}
+
+	if (_speed == 0)
+	{
+		ResetThreads();
 	}
 }
 
@@ -780,9 +815,11 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 
 	_celestialBodies.clear();
 	_celestialBodies.shrink_to_fit();
+	_celestialBodiesNames.clear();
 
-	_nonCelestialBodies.shrink_to_fit();
 	_nonCelestialBodies.clear();
+	_nonCelestialBodies.shrink_to_fit();
+	_nonCelestialBodiesNames.clear();
 
 	for (int i = 0; i < fileLength; i++)
 	{
