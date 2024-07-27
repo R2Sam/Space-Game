@@ -6,6 +6,7 @@
 #include <vector>
 #include <cmath>
 #include <chrono>
+#include <atomic>
 
 // Draw texture with scaling
 void DrawTextureScale(const Texture2D& texture, const Vector2& position, const float& scale, const Color& color);
@@ -58,6 +59,11 @@ bool ColorCompare(const Color& a, const Color& b);
 // Date or seconds from a certain epoch
 double DateToSeconds(const std::string& dateString, const std::tm& epoch);
 std::string SecondsToDate(double seconds, const std::tm& epoch);
+
+// Thread syncing
+void ThreadSync(std::atomic<bool>& start, std::atomic<int>& ready, std::atomic<int>& done, const int& threadNumber);
+void ThreadDone(std::atomic<int>& done);
+void WaitForThreads(std::atomic<bool>& start, std::atomic<int>& ready, std::atomic<int>& done, const int& threadNumber);
 
 // Vector2 made out of doubles
 struct Vector2d
@@ -187,15 +193,16 @@ struct Vector2d
 	    return std::sqrt(dx * dx + dy * dy);
 	}
 
-	constexpr inline Vector2d& normalize()
+	constexpr inline Vector2d normalize() const
 	{
 	    double len = length();
+	    Vector2d  normal = *this;
 	    if (len > 0)
 	    {
-	        x /= len;
-	        y /= len;
+	        normal.x /= len;
+	        normal.y /= len;
 	    }
-	    return *this;
+	    return normal;
 	}
 };
 
@@ -366,16 +373,17 @@ struct Vector3d
 	    return std::sqrt(dx * dx + dy * dy + dz * dz);
 	}
 
-	constexpr inline Vector3d& normalize()
+	constexpr inline Vector3d normalize() const
 	{
 	    double len = length();
+	    Vector3d normal = *this;
 	    if (len > 0)
 	    {
-	        x /= len;
-	        y /= len;
-	        z /= len;
+	        normal.x /= len;
+	        normal.y /= len;
+	        normal.z /= len;
 	    }
-	    return *this;
+	    return normal;
 	}
 };
 
@@ -512,15 +520,16 @@ struct Vector2f
 	    return std::sqrt(dx * dx + dy * dy);
 	}
 
-	constexpr inline Vector2f& normalize()
+	constexpr inline Vector2f normalize() const
 	{
 	    float len = length();
+	    Vector2f normal = *this;
 	    if (len > 0)
 	    {
-	        x /= len;
-	        y /= len;
+	        normal.x /= len;
+	        normal.y /= len;
 	    }
-	    return *this;
+	    return normal;
 	}
 };
 
@@ -665,16 +674,17 @@ struct Vector3f
 	    return std::sqrt(dx * dx + dy * dy + dz * dz);
 	}
 
-	constexpr inline Vector3f& normalize()
+	constexpr inline Vector3f normalize() const
 	{
 	    float len = length();
+	    Vector3f normal = *this;
 	    if (len > 0)
 	    {
-	        x /= len;
-	        y /= len;
-	        z /= len;
+	        normal.x /= len;
+	        normal.y /= len;
+	        normal.z /= len;
 	    }
-	    return *this;
+	    return normal;
 	}
 };
 

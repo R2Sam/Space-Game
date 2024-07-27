@@ -25,6 +25,7 @@ void MainLevelScene::Init()
 {	
 	_bodyTile = {"○", {GREEN, LIGHTGRAY}};
 	_sunTile =  {"☼", {ORANGE, YELLOW}};
+	_moonTile = {"○", {GRAY, LIGHTGRAY}};
 	_craftTile = {"•", {RED, LIGHTGRAY}};
 	_mapTile = {"♪", {GRAY, DARKGRAY}};
 }
@@ -80,8 +81,8 @@ void MainLevelScene::GetInputs()
 
 void MainLevelScene::UpdateMap()
 {
-	_planets = _services->GetGameStateHandler()->orbitalSimulation->GetBodiesV(true);
-	_craft = _services->GetGameStateHandler()->orbitalSimulation->GetBodiesV(false);
+	_planets = _services->GetGameStateHandler()->orbitalSimulation->GetCelestialBodies();
+	_craft = _services->GetGameStateHandler()->orbitalSimulation->GetOrbitalBodies();
 }
 
 void MainLevelScene::DrawMap()
@@ -111,26 +112,11 @@ void MainLevelScene::DrawMap()
 
 		Vector2 pos = {std::round(v.x + center.x), std::round(-v.z + center.y)};
 
-		if (body->radius * scaleFactor > 1)
-		{
-			DrawCircleTile(screen, pos, body->radius * scaleFactor, _craftTile);
-		}
-
-		else
-		{
-			_services->GetGameStateHandler()->screen->ChangeTile(_craftTile, pos);
-		}
+		_services->GetGameStateHandler()->screen->ChangeTile(_craftTile, pos);
 	}
 
-	for (std::weak_ptr<OrbitalBody>& ptr : _planets)
+	for (CelestialBody* body : _planets)
 	{
-		std::shared_ptr<OrbitalBody> body = ptr.lock();
-
-		if (!body)
-		{
-			continue;
-		}
-
 		Vector3d v = body->position * scaleFactor;
 
 		Vector2 pos = {std::round(v.x + center.x), std::round(-v.z + center.y)};
@@ -144,7 +130,20 @@ void MainLevelScene::DrawMap()
 
 			else
 			{
-				_services->GetGameStateHandler()->screen->ChangeTile(_sunTile, pos);
+				screen.ChangeTile(_sunTile, pos);
+			}
+		}
+
+		else if (body->parent && body->parent->name == "Jupiter")
+		{
+			if (body->radius * scaleFactor > 1)
+			{
+				DrawCircleTile(screen, pos, body->radius * scaleFactor, _moonTile);
+			}
+
+			else
+			{
+				screen.ChangeTile(_moonTile, pos);
 			}
 		}
 
@@ -157,7 +156,7 @@ void MainLevelScene::DrawMap()
 
 			else
 			{
-				_services->GetGameStateHandler()->screen->ChangeTile(_bodyTile, pos);
+				screen.ChangeTile(_bodyTile, pos);
 			}
 		}
 	}
@@ -180,7 +179,7 @@ void MainLevelScene::Enter()
 		_services->GetGameStateHandler()->orbitalSimulation->LoadBodiesFromFile("../data/Bodies.txt");
 	}
 
-	_services->GetGameStateHandler()->orbitalSimulation->SetSpeed(100000);
+	_services->GetGameStateHandler()->orbitalSimulation->SetSpeed(100e3);
 }
 
 void MainLevelScene::Exit()

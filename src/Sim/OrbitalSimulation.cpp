@@ -9,17 +9,17 @@
 
 #include <cassert>
 #include <array>
+#include <cmath>
 #include <cstring>
-#include <thread>
-#include <deque>
+#include <algorithm>
 
 // Unit in m
-const double G = 6.674e-11;
+const double G = 6.67430e-11;
 
 // Unit in Km
-const double GKm = 6.674e-20;
+const double GKm = 6.67430e-20;
 
-const unsigned int maxSpeed = 100000;
+const unsigned int maxSpeed = 100e3;
 
 const std::tm epoch = {0, 0, 0, 1, 0, 120, -1};
 
@@ -69,25 +69,25 @@ inline Vector3d OrbitalSimulation::CalculateAcceleration(const Vector3d& r, cons
 	return -r * ((mu)/(length * length * length));
 }
 
-Vector3d OrbitalSimulation::CalculateTotalAcceleration(const Vector3d& position, OrbitalBody& body, const std::vector<OrbitalBody>& bodies) const
+Vector3d OrbitalSimulation::CalculateTotalAcceleration(const Vector3d& position, OrbitalBody& body, std::deque<CelestialBody>& bodies)
 {
 	Vector3d acceleration = Vector3dZero();
-	std::pair<double, std::string> topForce = std::make_pair(0, "");
+	std::pair<double, CelestialBody*> topForce = std::make_pair(0, nullptr);
 
-	for (const OrbitalBody& otherBody : bodies)
+	for (CelestialBody& celestialBody : bodies)
 	{
-		if (body.name != otherBody.name)
+		if (body.name != celestialBody.name)
 		{
-			Vector3d r = position - otherBody.position;
+			Vector3d r = position - celestialBody.position;
 
-			Vector3d v = CalculateAcceleration(r, otherBody.mass);
+			Vector3d v = CalculateAcceleration(r, celestialBody.mass);
 			acceleration += v;
 
 			float strength = v.length();
-			if (topForce.first < strength && body.mass < otherBody.mass)
+			if (topForce.first < strength && body.mass < celestialBody.mass)
 			{
 				topForce.first = strength;
-				topForce.second = otherBody.name;
+				topForce.second = &celestialBody;
 			}
 		}
 	}
@@ -97,7 +97,7 @@ Vector3d OrbitalSimulation::CalculateTotalAcceleration(const Vector3d& position,
 	return acceleration;
 }
 
-void OrbitalSimulation::RungeKutta(OrbitalBody& body, const std::vector<OrbitalBody>& bodies, const double& h)
+void OrbitalSimulation::RungeKutta(OrbitalBody& body, std::deque<CelestialBody>& bodies, const double& h)
 {
     Vector3d k1v, k2v, k3v, k4v;
     Vector3d k1r, k2r, k3r, k4r;
@@ -119,7 +119,7 @@ void OrbitalSimulation::RungeKutta(OrbitalBody& body, const std::vector<OrbitalB
     body.position += (k1r + 2 * k2r + 2 * k3r + k4r) * sixthH;
     body.velocity += (k1v + 2 * k2v + 2 * k3v + k4v) * sixthH;
 
-    if (!body.celestialBody && body.thrust != Vector3dZero())
+    if (body.thrust != Vector3dZero())
     {
     	Vector3d thrust = body.thrust;
 
@@ -133,36 +133,142 @@ void OrbitalSimulation::RungeKutta(OrbitalBody& body, const std::vector<OrbitalB
     }
 }
 
-void OrbitalSimulation::UpdateOrbits(std::vector<OrbitalBody>& bodies, std::vector<OrbitalBody>& celestialBodies, const std::atomic<double>& dt, const std::atomic<int>& steps, std::atomic<int>& _done, std::atomic<int>& _ready, std::atomic<bool>& start)
+void OrbitalSimulation::CalculateOrbitalParamaters(CelestialBody* body)
 {
-	while (true)
+	if (body->parent)
 	{
-		while (_done.load(std::memory_order_acquire) != 0)
+		Vector3d position = body->position - body->parent->position;
+		Vector3d velocity = body->velocity - body->parent->velocity;
+
+		double mu = G * body->parent->mass;
+
+		if (_km)
 		{
-			_done.wait(_threadNumber * 2);
+			mu = GKm * body->parent->mass;
 		}
 
-		_ready.fetch_add(1, std::memory_order_release);
-		_ready.notify_all();
+	    Vector3d h = position.cross(velocity);
+	    double h_mag = h.length();
 
-		while (!start.load(std::memory_order_acquire))
+	    Vector3d e = ((velocity.cross(h) / mu) - position.normalize());
+	    double e_mag = e.length();
+	    body->eccentricity = e_mag;
+
+	    double en = ((velocity.length() * velocity.length()) / 2.0) - (mu / position.length());
+	    body->semiMajorAxis = -(mu / (2.0 * en));
+
+	    body->inclination = std::acos(h.z / h_mag);
+
+	    Vector3d n = {-h.y, h.x, 0};
+	    double n_mag = n.length();
+
+	    body->longitudeAscendingNode = std::atan2(n.y, n.x);
+	    if (body->longitudeAscendingNode < 0)
+	    {
+	        body->longitudeAscendingNode += 2.0 * PI;
+	    }
+	    if (body->longitudeAscendingNode >= 2.0 * PI)
+	    {
+	    	body->longitudeAscendingNode -= 2.0 * PI;
+	    }
+
+	    body->argumentOfPeriapsis = std::acos(std::clamp(n.dot(e) / (n_mag * body->eccentricity), -1.0, 1.0));
+	    if (e.z < 0)
+	    {
+	        body->argumentOfPeriapsis = 2.0 * PI - body->argumentOfPeriapsis;
+	    }
+
+	    body->trueAnomaly = std::acos(std::clamp(e.dot(position) / (body->eccentricity * position.length()), -1.0, 1.0));
+	    if (position.dot(velocity) < 0)
+	    {
+	        body->trueAnomaly = 2.0 * PI - body->trueAnomaly;
+	    }
+
+	    Log(body->name << " " << body->semiMajorAxis << " " << body->eccentricity << " " << body->inclination << " " << body->argumentOfPeriapsis << " " << body->longitudeAscendingNode << " " << body->trueAnomaly);
+	}
+}
+
+void OrbitalSimulation::UpdateCelestialBody(std::deque<CelestialBody>& bodies, const double dt)
+{
+	for (CelestialBody& body : bodies)
+	{
+		if (body.parent)
 		{
-			start.wait(false);
-		}
+		    double mu = G * body.parent->mass;
 
-		if (bodies.size())
-		{
-			for (int i = 0; i < steps; i++)
-			{
-				for (OrbitalBody& body : bodies)
-				{
-					RungeKutta(body, celestialBodies, dt);
-				}
-			}
-		}
+		    if (_km)
+		    {
+		    	mu = GKm * body.parent->mass;
+		    }
 
-		_done.fetch_add(1, std::memory_order_release);
-		_done.notify_all();
+		    double n = sqrt(mu / pow(body.semiMajorAxis, 3));
+		    double E0 = 2.0 * atan(sqrt((1.0 - body.eccentricity) / (1.0 + body.eccentricity)) * tan(body.trueAnomaly / 2.0));
+			double M0 = E0 - body.eccentricity * sin(E0);
+		    double M = M0 + n * dt;
+		   	if (M > 2.0 * PI)
+		    {
+		    	M -= 2.0 * PI;
+		    }
+
+		    double E = M;
+		    double deltaE = 1e-9;
+		    for (int i = 0; i < 100; i++)
+		    {
+		    	double delta = E - body.eccentricity * sin(E) - M;
+
+		    	if (std::fabs(delta) < deltaE)
+		    	{
+		    		break;
+		    	}
+
+		    	E -= delta / (1.0 - body.eccentricity * cos(E));
+		    }
+
+		    body.trueAnomaly = 2.0 * std::atan2(sqrt(1.0 + body.eccentricity) * sin(E / 2.0), sqrt(1.0 - body.eccentricity) * cos(E / 2.0));
+
+		    double r = body.semiMajorAxis * (1.0 - body.eccentricity * body.eccentricity) / (1.0 + body.eccentricity * cos(body.trueAnomaly));
+		    double x_orbital = r * cos(body.trueAnomaly);
+		    double y_orbital = r * sin(body.trueAnomaly);
+
+		    double cosOmega = cos(body.longitudeAscendingNode);
+		    double sinOmega = sin(body.longitudeAscendingNode);
+		    double cosi = cos(body.inclination);
+		    double sini = sin(body.inclination);
+		    double cosw = cos(body.argumentOfPeriapsis);
+		    double sinw = sin(body.argumentOfPeriapsis);
+
+		    Vector3d position = body.parent->position;
+
+		    position.x += (cosOmega * cosw - sinOmega * sinw * cosi) * x_orbital + (-cosOmega * sinw - sinOmega * cosw * cosi) * y_orbital;
+		    position.y += (sinOmega * cosw + cosOmega * sinw * cosi) * x_orbital + (-sinOmega * sinw + cosOmega * cosw * cosi) * y_orbital;
+		    position.z += (sinw * sini) * x_orbital + (cosw * sini) * y_orbital;
+
+		    body.position = position;
+
+		    double v = sqrt(mu * (2.0 / r - 1.0 / body.semiMajorAxis));
+		    double h = sqrt(mu * body.semiMajorAxis * (1.0 - body.eccentricity * body.eccentricity));
+
+		    Vector3d orbitalVelocity = {-v * sin(body.trueAnomaly), v * (body.eccentricity + cos(body.trueAnomaly)), 0.0};
+
+		    Vector3d rotatedOrbitalVelocity = {orbitalVelocity.x * cosw - orbitalVelocity.y * sinw, orbitalVelocity.x * sinw + orbitalVelocity.y * cosw, orbitalVelocity.z};
+		    Vector3d rotatedInclinedVelocity = {rotatedOrbitalVelocity.x, rotatedOrbitalVelocity.y * cosi - rotatedOrbitalVelocity.z * sini, rotatedOrbitalVelocity.y * sini + rotatedOrbitalVelocity.z * cosi};
+
+		    Vector3d velocity = body.parent->velocity;
+
+		    velocity.x += rotatedInclinedVelocity.x * cosOmega - rotatedInclinedVelocity.y * sinOmega;
+		    velocity.y += rotatedInclinedVelocity.x * sinOmega + rotatedInclinedVelocity.y * cosOmega;
+    		velocity.z += rotatedInclinedVelocity.z;
+
+		    body.velocity = velocity;
+	    }
+	}
+}
+
+void OrbitalSimulation::UpdateOrbitalBody(std::deque<std::shared_ptr<OrbitalBody>>& bodies, std::deque<CelestialBody>& celestialBodies, const double dt)
+{
+	for (std::shared_ptr<OrbitalBody>& body : bodies)
+	{
+		RungeKutta(*body, celestialBodies, dt);
 	}
 }
 
@@ -175,16 +281,16 @@ void OrbitalSimulation::Update()
 
 	// Cap the deltaT if the framerate goes bellow 30fps
 	float deltaT = _services->deltaT;
-	if (deltaT > 0.0333)
+	if (deltaT > 0.066666)
 	{
-		deltaT = 0.0333;
+		deltaT = 0.066666;
 
 		static int i = 0;
 		i++;
 		if (i >= 60)
 		{
 			i = 0;
-			LogColor("FPS bellow 30! Sim will remain at 0.0333 dt", LOG_YELLOW);
+			LogColor("FPS bellow 15! Sim will remain at 0.06 dt", LOG_YELLOW);
 		}
 	}
 
@@ -213,337 +319,104 @@ void OrbitalSimulation::Update()
 		}
 	}
 
-	static std::atomic<int> steps = updates;
-	steps = updates;
-	static std::atomic<double> timeStep = dt;
-	timeStep = dt;
+	std::deque<CelestialBody> celestialBodies = _celestialBodies;
 
-	static std::atomic<bool> start = false;
-
-	static std::deque<std::vector<OrbitalBody>> celestialBodies(_threadNumber);
-	static std::deque<std::vector<OrbitalBody>> nonCelestialBodies(_threadNumber);
-
-	static std::deque<std::vector<OrbitalBody>> allCelestialBodies1(_threadNumber);
-	static std::deque<std::vector<OrbitalBody>> allCelestialBodies2(_threadNumber);
-
-	if (_threads.empty())
+	for (int i = 0; i < updates; i++)
 	{
-		_threads.reserve(_threadNumber * 2);
-
-		for (int i = 0; i < _threadNumber; i++)
-		{
-			_threads.push_back(std::thread(&OrbitalSimulation::UpdateOrbits, this, std::ref(celestialBodies[i]), std::ref(allCelestialBodies1[i]), std::ref(timeStep), std::ref(steps), std::ref(_done), std::ref(_ready), std::ref(start)));
-		}
-
-		for (int i = 0; i < _threadNumber; i++)
-		{
-			_threads.push_back(std::thread(&OrbitalSimulation::UpdateOrbits, this, std::ref(nonCelestialBodies[i]), std::ref(allCelestialBodies2[i]), std::ref(timeStep), std::ref(steps), std::ref(_done), std::ref(_ready), std::ref(start)));
-		}
+		UpdateOrbitalBody(_orbitalBodies, _celestialBodies, dt);
+		UpdateCelestialBody(celestialBodies, dt);
 	}
 
-	static int celestialBodyCount = 0;
-	static int nonCelestialBodyCount = 0;
-
-	if (celestialBodyCount != _celestialBodies.size())
-	{
-		celestialBodyCount = _celestialBodies.size();
-		int count = celestialBodyCount / _threadNumber;
-		int remainder = celestialBodyCount % _threadNumber;
-
-		int bodyCount = 0;
-
-		for (int i = 0; i < celestialBodies.size(); i++)
-		{
-			celestialBodies[i].clear();
-
-			if (i == celestialBodies.size() - 1)
-			{
-				celestialBodies[i].reserve(count + remainder);
-
-				for (int j = 0; j < (count + remainder); j++)
-				{
-					OrbitalBody body = *_celestialBodies[bodyCount];
-					celestialBodies[i].push_back(body);
-
-					bodyCount++;
-				}
-			}
-
-			else
-			{
-				celestialBodies[i].reserve(count);
-
-				for (int j = 0; j < count; j++)
-				{
-					OrbitalBody body = *_celestialBodies[bodyCount];
-					celestialBodies[i].push_back(body);
-
-					bodyCount++;
-				}
-			}
-		}
-
-		for (std::vector<OrbitalBody>& v : allCelestialBodies1)
-		{
-			v.clear();
-			v.reserve(_celestialBodies.size());
-
-			for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
-			{
-				v.push_back(*body);
-			}
-		}
-
-		for (std::vector<OrbitalBody>& v : allCelestialBodies2)
-		{
-			v.clear();
-			v.reserve(_celestialBodies.size());
-
-			for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
-			{
-				v.push_back(*body);
-			}
-		}
-	}
-
-	for (std::vector<OrbitalBody>& v : allCelestialBodies1)
-	{
-		for (int i = 0; i < _celestialBodies.size(); i++)
-		{
-			v[i] = *_celestialBodies[i];
-		}
-	}
-
-	for (std::vector<OrbitalBody>& v : allCelestialBodies2)
-	{
-		for (int i = 0; i < _celestialBodies.size(); i++)
-		{
-			v[i] = *_celestialBodies[i];
-		}
-	}
-
-	if (nonCelestialBodyCount != _nonCelestialBodies.size())
-	{
-		nonCelestialBodyCount = _nonCelestialBodies.size();
-		int count = nonCelestialBodyCount / _threadNumber;
-		int remainder = nonCelestialBodyCount % _threadNumber;
-
-		int bodyCount = 0;
-
-		for (int i = 0; i < nonCelestialBodies.size(); i++)
-		{
-			nonCelestialBodies[i].clear();
-
-			if (i == nonCelestialBodies.size() - 1)
-			{
-				nonCelestialBodies[i].reserve(count + remainder);
-
-				for (int j = 0; j < (count + remainder); j++)
-				{
-					OrbitalBody body = *_nonCelestialBodies[bodyCount];
-					nonCelestialBodies[i].push_back(body);
-
-					bodyCount++;
-				}
-			}
-
-			else
-			{
-				nonCelestialBodies[i].reserve(count);
-
-				for (int j = 0; j < count; j++)
-				{
-					OrbitalBody body = *_nonCelestialBodies[bodyCount];
-					nonCelestialBodies[i].push_back(body);
-
-					bodyCount++;
-				}
-			}
-		}
-	}
-
-	start.store(false, std::memory_order_release);
-	start.notify_all();
-	_ready.store(0, std::memory_order_release);
-	_ready.notify_all();
-	_done.store(0, std::memory_order_release);
-	_done.notify_all();
-	while (_ready.load(std::memory_order_acquire) < _threadNumber * 2 )
-	{
-		_ready.wait(0);
-	}
-	start.store(true, std::memory_order_release);
-	start.notify_all();
-	while (_done.load(std::memory_order_acquire) < _threadNumber * 2 )
-	{
-		_done.wait(0);
-	}
-
-	OrbitalBody* sun;
-
-	int bodyCount = 0;
-	for (int i = 0; i < celestialBodies.size(); i++)
-	{
-		for (int j = 0; j < celestialBodies[i].size(); j++)
-		{
-			assert(celestialBodies[i][j].name == _celestialBodies[bodyCount]->name);
-			*_celestialBodies[bodyCount] = celestialBodies[i][j];
-			if (_celestialBodies[bodyCount]->name == "Sun")
-			{
-				sun = _celestialBodies[bodyCount].get();
-			}
-			bodyCount++;
-		}
-	}
-
-	bodyCount = 0;
-	for (int i = 0; i < nonCelestialBodies.size(); i++)
-	{
-		for (int j = 0; j < nonCelestialBodies[i].size(); j++)
-		{
-			assert(nonCelestialBodies[i][j].name == _nonCelestialBodies[bodyCount]->name);
-			*_nonCelestialBodies[bodyCount] = nonCelestialBodies[i][j];
-			bodyCount++;
-		}
-	}
-
-	for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
-	{
-		body->position -= sun->position;
-		body->velocity -= sun->velocity;
-	}
-
-	for (std::shared_ptr<OrbitalBody>& body : _nonCelestialBodies)
-	{
-		body->position -= sun->position;
-		body->velocity -= sun->velocity;
-	}
-
-	sun->position = Vector3dZero();
-	sun->velocity = Vector3dZero();
+	_celestialBodies = celestialBodies;
 
 	_simTime += dt * updates;
 }
 
-void OrbitalSimulation::ResetThreads()
+CelestialBody* OrbitalSimulation::AddCelestialBody(const CelestialBody& body)
 {
-	_threads.clear();
+	CelestialBody* pointer = nullptr;
 
-	_ready.store(_threadNumber * 2, std::memory_order_release);
-	_ready.notify_all();
-	_done.store(_threadNumber * 2, std::memory_order_release);
-	_done.notify_all();
+	auto it = _celestialBodiesMap.find(body.name);
+	if (it == _celestialBodiesMap.end())
+	{
+		_celestialBodies.push_back(body);
+		pointer = &_celestialBodies[_celestialBodies.size() - 1];
+		_celestialBodiesMap[body.name] = pointer;
+	}
+
+	return pointer;
 }
 
-std::weak_ptr<OrbitalBody> OrbitalSimulation::AddBody(OrbitalBody& body)
+std::weak_ptr<OrbitalBody> OrbitalSimulation::AddOrbitalBody(const OrbitalBody& body)
 {
-	if (body.celestialBody)
+	std::weak_ptr<OrbitalBody> pointer;
+
+	auto it = _orbitalBodiesMap.find(body.name);
+	if (it == _orbitalBodiesMap.end())
 	{
-		auto it = _celestialBodiesNames.find(body.name);
-		if (it != _celestialBodiesNames.end())
-		{
-			LogColor("Body: " << body.name << " is al_ready in the sim", LOG_YELLOW);
-			return std::weak_ptr<OrbitalBody>();
-		}
-
-		_celestialBodies.push_back(std::make_shared<OrbitalBody>(body));
-		_celestialBodiesNames.insert(body.name);
-
-		return _celestialBodies[_celestialBodies.size() - 1];
+		_orbitalBodies.push_back(std::make_shared<OrbitalBody>(body));
+		pointer = _orbitalBodies[_orbitalBodies.size() - 1];
+		_orbitalBodiesMap[body.name] = pointer;
 	}
 
-	auto it = _nonCelestialBodiesNames.find(body.name);
-	if (it != _nonCelestialBodiesNames.end())
-	{
-		LogColor("Body: " << body.name << " is al_ready in the sim", LOG_YELLOW);
-		return std::weak_ptr<OrbitalBody>();
-	}
-
-	_nonCelestialBodies.push_back(std::make_shared<OrbitalBody>(body));
-	_nonCelestialBodiesNames.insert(body.name);
-
-	return _nonCelestialBodies[_nonCelestialBodies.size() - 1];
+	return pointer;
 }
 
-bool OrbitalSimulation::RemoveBody(std::weak_ptr<OrbitalBody> bodyPtr)
+bool OrbitalSimulation::RemoveOrbitalBody(std::weak_ptr<OrbitalBody>& bodyPtr)
 {
-	if(!bodyPtr.lock())
+	if (auto ptr = bodyPtr.lock())
 	{
-		return false;
-	}
-
-	if (bodyPtr.lock()->celestialBody)
-	{
-		for (int i = 0; i < _celestialBodies.size(); i++)
+		auto mapit = _orbitalBodiesMap.find(ptr->name);
+		if (mapit != _orbitalBodiesMap.end())
 		{
-			if (_celestialBodies[i] == bodyPtr.lock())
+			_orbitalBodiesMap.erase(ptr->name);
+
+			auto dequeit = std::find(_orbitalBodies.begin(), _orbitalBodies.end(), ptr);
+			if (dequeit != _orbitalBodies.end())
 			{
-				_celestialBodiesNames.erase(bodyPtr.lock()->name);
-				_celestialBodies.erase(_celestialBodies.begin() + i);
+				_orbitalBodies.erase(dequeit);
 				return true;
 			}
-		}
-
-		return false;
-	}
-
-	for (int i = 0; i < _nonCelestialBodies.size(); i++)
-	{
-		if (_nonCelestialBodies[i] == bodyPtr.lock())
-		{
-			_nonCelestialBodiesNames.erase(bodyPtr.lock()->name);
-			_nonCelestialBodies.erase(_nonCelestialBodies.begin() + i);
-			return true;
 		}
 	}
 
 	return false;
 }
 
-std::unordered_map<std::string, std::weak_ptr<OrbitalBody>> OrbitalSimulation::GetBodies(const bool& celestialBody)
+std::vector<CelestialBody*> OrbitalSimulation::GetCelestialBodies()
 {
-	std::unordered_map<std::string, std::weak_ptr<OrbitalBody>> bodies;
+	std::vector<CelestialBody*> vector;
+	vector.reserve(_celestialBodies.size());
 
-	if (celestialBody)
+	for (CelestialBody& body : _celestialBodies)
 	{
-		for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
-		{
-			bodies[body->name] = body;
-		}
+		vector.push_back(&body);
 	}
 
-	else
-	{
-		for (std::shared_ptr<OrbitalBody>& body : _nonCelestialBodies)
-		{
-			bodies[body->name] = body;
-		}
-	}
-
-	return bodies;
+	return vector;
 }
 
-std::vector<std::weak_ptr<OrbitalBody>> OrbitalSimulation::GetBodiesV(const bool& celestialBody)
+std::unordered_map<std::string, CelestialBody*> OrbitalSimulation::GetCelestialBodiesMap()
 {
-	std::vector<std::weak_ptr<OrbitalBody>> bodies;
+	return _celestialBodiesMap;
+}
 
-	if (celestialBody)
+std::vector<std::weak_ptr<OrbitalBody>> OrbitalSimulation::GetOrbitalBodies()
+{
+	std::vector<std::weak_ptr<OrbitalBody>> vector;
+	vector.reserve(_orbitalBodies.size());
+
+	for (std::shared_ptr<OrbitalBody>& body : _orbitalBodies)
 	{
-		for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
-		{
-			bodies.push_back(body);
-		}
+		vector.push_back(body);
 	}
 
-	else
-	{
-		for (std::shared_ptr<OrbitalBody>& body : _nonCelestialBodies)
-		{
-			bodies.push_back(body);
-		}
-	}
+	return vector;
+}
 
-	return bodies;
+std::unordered_map<std::string, std::weak_ptr<OrbitalBody>> OrbitalSimulation::GetOrbitalBodiesMap()
+{
+	return _orbitalBodiesMap;
 }
 
 double OrbitalSimulation::GetTime() const
@@ -579,11 +452,6 @@ void OrbitalSimulation::SpeedControl(bool& increse, bool& decrese)
 			_speed = speeds[speedIndex];
 		}
 	}
-
-	if (_speed == 0)
-	{
-		ResetThreads();
-	}
 }
 
 unsigned int OrbitalSimulation::GetSpeed() const
@@ -618,35 +486,33 @@ void OrbitalSimulation::SetKm(const bool& km)
 
 	if (_km)
 	{
-		for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+		for (CelestialBody& body : _celestialBodies)
 		{
-			body->position *= 1000;
-			body->velocity *= 1000;
-			body->radius *= 1000;
+			body.position *= 1000;
+			body.velocity *= 1000;
+			body.radius *= 1000;
 		}
 
-		for (std::shared_ptr<OrbitalBody>& body : _nonCelestialBodies)
+		for (std::shared_ptr<OrbitalBody>& body : _orbitalBodies)
 		{
 			body->position *= 1000;
 			body->velocity *= 1000;
-			body->radius *= 1000;
 		}
 	}
 
 	else
 	{
-		for (std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+		for (CelestialBody& body : _celestialBodies)
 		{
-			body->position *= 0.001;
-			body->velocity *= 0.001;
-			body->radius *= 0.001;
+			body.position *= 0.001;
+			body.velocity *= 0.001;
+			body.radius *= 0.001;
 		}
 
-		for (std::shared_ptr<OrbitalBody>& body : _nonCelestialBodies)
+		for (std::shared_ptr<OrbitalBody>& body : _orbitalBodies)
 		{
 			body->position *= 0.001;
 			body->velocity *= 0.001;
-			body->radius *= 0.001;
 		}
 	}
 
@@ -659,123 +525,130 @@ bool OrbitalSimulation::SaveBodiesToFile(const std::string& path)
 
     output += "--Date:" + SecondsToDate(_simTime, epoch) + "\n";
 
-    for (const std::shared_ptr<OrbitalBody>& body : _celestialBodies)
+    output += "--CelestialBodies\n";
+
+    for (const CelestialBody& body : _celestialBodies)
     {
-        output += "--Name:" + body->name;
+        output += "--Name:" + body.name;
 
         output += "--Parent:";
 
         bool parent = false;
-        auto it = _celestialBodiesNames.find(body->parent);
-        if (it != _celestialBodiesNames.end())
+        if (body.parent)
         {
-        	output += body->parent;
-        	parent = true;
-        }
-
-        else
+	        auto it = _celestialBodiesMap.find(body.parent->name);
+	        if (it != _celestialBodiesMap.end())
+	        {
+	        	output += body.parent->name;
+	        	parent = true;
+	        }
+	    }
+		
+		if (!parent)
         {
         	output += "Null";
         }
         
-        output += "--CelestialBody:" + std::to_string(true);
-        
-        Vector3d pos = body->position;
+        Vector3d pos = body.position;
         output += "--Position:";
 
         if (parent)
         {
-	        for (int i = 0; i < _celestialBodies.size(); i++)
+	        auto it = _celestialBodiesMap.find(body.parent->name);
+	        if (it != _celestialBodiesMap.end())
 			{
-				if (_celestialBodies[i]->name == body->parent)
-				{
-					pos -= _celestialBodies[i]->position;
-				}
+				pos -= it->second->position;
 			}
 		}
 
-        output += std::to_string(pos.x) + "," + std::to_string(pos.y) + "," + std::to_string(pos.z);
+        output += DoubleToRoundedString(pos.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.z, std::numeric_limits<double>::max_digits10);
  
- 		Vector3d vel = body->velocity;       
+ 		Vector3d vel = body.velocity;       
         output += "--Velocity:";
 
         if (parent)
         {
-	        for (int i = 0; i < _celestialBodies.size(); i++)
+	        auto it = _celestialBodiesMap.find(body.parent->name);
+	        if (it != _celestialBodiesMap.end())
 			{
-				if (_celestialBodies[i]->name == body->parent)
-				{
-					vel -= _celestialBodies[i]->velocity;
-				}
+				vel -= it->second->velocity;
 			}
 		}
 
-        output += std::to_string(vel.x) + "," + std::to_string(vel.y) + "," + std::to_string(vel.z);
+        output += DoubleToRoundedString(vel.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.z, std::numeric_limits<double>::max_digits10);
         
-        output += "--Mass:" + std::to_string(body->mass);
+        output += "--Mass:" + DoubleToRoundedString(body.mass, std::numeric_limits<double>::max_digits10);
         
-        output += "--Radius:" + std::to_string(body->radius);
+        output += "--Radius:" + DoubleToRoundedString(body.radius, std::numeric_limits<double>::max_digits10);
+
+        output += "--SemiMajorAxis:" +  DoubleToRoundedString(body.semiMajorAxis, std::numeric_limits<double>::max_digits10);
+
+        output += "--Eccentricity:" +  DoubleToRoundedString(body.eccentricity, std::numeric_limits<double>::max_digits10);
+
+        output += "--Inclination:" +  DoubleToRoundedString(body.inclination, std::numeric_limits<double>::max_digits10);
+
+        output += "--ArgumentOfPeriapsis:" +  DoubleToRoundedString(body.argumentOfPeriapsis, std::numeric_limits<double>::max_digits10);
+
+        output += "--LongitudeAscendingNode:" +  DoubleToRoundedString(body.longitudeAscendingNode, std::numeric_limits<double>::max_digits10);
+
+        output += "--TrueAnomaly:" +  DoubleToRoundedString(body.trueAnomaly, std::numeric_limits<double>::max_digits10);
         
         output += "---\n";
     }
 
-    for (const std::shared_ptr<OrbitalBody>& body : _nonCelestialBodies)
+    output += "--OrbitalBodies\n";
+
+    for (const std::shared_ptr<OrbitalBody>& body : _orbitalBodies)
     {
         output += "--Name:" + body->name;
 
         output += "--Parent:";
 
         bool parent = false;
-        auto it = _nonCelestialBodiesNames.find(body->parent);
-        if (it != _nonCelestialBodiesNames.end())
+        if (body->parent)
         {
-        	output += body->parent;
-        	parent = true;
-        }
+	        auto it = _celestialBodiesMap.find(body->parent->name);
+	        if (it != _celestialBodiesMap.end())
+	        {
+	        	output += body->parent->name;
+	        	parent = true;
+	        }
+	    }
 
-        else
+        if(!parent)
         {
         	output += "Null";
         }
-        
-        
-        output += "--CelestialBody:" + std::to_string(false);
         
        	Vector3d pos = body->position;
         output += "--Position:";
 
         if (parent)
         {
-	        for (int i = 0; i < _celestialBodies.size(); i++)
+	        auto it = _celestialBodiesMap.find(body->parent->name);
+	        if (it != _celestialBodiesMap.end())
 			{
-				if (_celestialBodies[i]->name == body->parent)
-				{
-					pos -= _celestialBodies[i]->position;
-				}
+				pos -= it->second->position;
 			}
 		}
 
-        output += std::to_string(pos.x) + "," + std::to_string(pos.y) + "," + std::to_string(pos.z);
+        output += DoubleToRoundedString(pos.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.z, std::numeric_limits<double>::max_digits10);
  
  		Vector3d vel = body->velocity;       
         output += "--Velocity:";
 
         if (parent)
         {
-	        for (int i = 0; i < _celestialBodies.size(); i++)
+	        auto it = _celestialBodiesMap.find(body->parent->name);
+	        if (it != _celestialBodiesMap.end())
 			{
-				if (_celestialBodies[i]->name == body->parent)
-				{
-					vel -= _celestialBodies[i]->velocity;
-				}
+				vel -= it->second->position;
 			}
 		}
 
-        output += std::to_string(vel.x) + "," + std::to_string(vel.y) + "," + std::to_string(vel.z);
+        output += DoubleToRoundedString(vel.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.z, std::numeric_limits<double>::max_digits10);
         
-        output += "--Mass:" + std::to_string(body->mass);
-        
-        output += "--Radius:" + std::to_string(body->radius);
+        output += "--Mass:" + DoubleToRoundedString(body->mass, std::numeric_limits<double>::max_digits10);
         
         output += "---\n";
     }
@@ -805,21 +678,20 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 
 	std::string name;
 	std::string parent;
-	bool CelestialBody;
+	bool celestialBody = true;
 
-	Vector3d pos;
-	Vector3d vel;
+	Vector3d pos = Vector3dZero();
+	Vector3d vel = Vector3dZero();
 
-	double mass;
-	double radius;
+	double mass = 0;
+	double radius = 0;
 
-	_celestialBodies.clear();
-	_celestialBodies.shrink_to_fit();
-	_celestialBodiesNames.clear();
-
-	_nonCelestialBodies.clear();
-	_nonCelestialBodies.shrink_to_fit();
-	_nonCelestialBodiesNames.clear();
+	double semiMajorAxis = 0;
+    double eccentricity = 0;
+    double inclination = 0;
+    double argumentOfPeriapsis = 0;
+    double longitudeAscendingNode = 0;
+    double trueAnomaly = 0;
 
 	for (int i = 0; i < fileLength; i++)
 	{
@@ -848,6 +720,20 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 			}
 		}
 
+		if (buffer == "--CelestialBodies")
+		{
+			buffer.clear();
+
+			celestialBody = true;
+		}
+
+		if (buffer == "--OrbitalBodies")
+		{
+			buffer.clear();
+
+			celestialBody = false;
+		}
+
 		if (buffer == "--Name:")
 		{
 			for (int ii = i + 1; ii < fileLength; ii++)
@@ -864,6 +750,7 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 
 				name += fileText[ii];
 			}
+
 		}
 
 		if (buffer == "--Parent:")
@@ -882,25 +769,6 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 
 				parent += fileText[ii];
 			}
-		}
-
-		if (buffer == "--CelestialBody:")
-		{
-			if (fileText[i+1] == '0')
-			{
-				CelestialBody = false;
-			}
-
-			else
-			{
-				CelestialBody = true;
-			}
-
-			buffer.clear();
-			buffer.shrink_to_fit();
-
-			// We skip ahead since we alredy looked one forward
-			i++;
 		}
 
 		if (buffer == "--Position:")
@@ -1049,29 +917,243 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 			}
 		}
 
+		if (buffer == "--SemiMajorAxis:")
+		{
+			for (int ii = i + 1; ii < fileLength; ii++)
+			{
+				// Ending of a section with "--"
+				if (fileText[ii] == '-' && fileText[ii + 1] == '-')
+				{
+					semiMajorAxis = std::stod(numberS);
+
+					buffer.clear();
+
+					numberS.clear();
+
+					i = ii - 1;
+
+					break;
+				}
+
+				numberS += fileText[ii];
+			}
+		}
+
+		if (buffer == "--Eccentricity:")
+		{
+			for (int ii = i + 1; ii < fileLength; ii++)
+			{
+				// Ending of a section with "--"
+				if (fileText[ii] == '-' && fileText[ii + 1] == '-')
+				{
+					eccentricity = std::stod(numberS);
+
+					buffer.clear();
+
+					numberS.clear();
+
+					i = ii - 1;
+
+					break;
+				}
+
+				numberS += fileText[ii];
+			}
+		}
+
+		if (buffer == "--Inclination:")
+		{
+			for (int ii = i + 1; ii < fileLength; ii++)
+			{
+				// Ending of a section with "--"
+				if (fileText[ii] == '-' && fileText[ii + 1] == '-')
+				{
+					inclination = std::stod(numberS);
+
+					buffer.clear();
+
+					numberS.clear();
+
+					i = ii - 1;
+
+					break;
+				}
+
+				numberS += fileText[ii];
+			}
+		}
+
+		if (buffer == "--ArgumentOfPeriapsis:")
+		{
+			for (int ii = i + 1; ii < fileLength; ii++)
+			{
+				// Ending of a section with "--"
+				if (fileText[ii] == '-' && fileText[ii + 1] == '-')
+				{
+					argumentOfPeriapsis = std::stod(numberS);
+
+					buffer.clear();
+
+					numberS.clear();
+
+					i = ii - 1;
+
+					break;
+				}
+
+				numberS += fileText[ii];
+			}
+		}
+
+		if (buffer == "--LongitudeAscendingNode:")
+		{
+			for (int ii = i + 1; ii < fileLength; ii++)
+			{
+				// Ending of a section with "--"
+				if (fileText[ii] == '-' && fileText[ii + 1] == '-')
+				{
+					longitudeAscendingNode = std::stod(numberS);
+
+					buffer.clear();
+
+					numberS.clear();
+
+					i = ii - 1;
+
+					break;
+				}
+
+				numberS += fileText[ii];
+			}
+		}
+
+		if (buffer == "--TrueAnomaly:")
+		{
+			for (int ii = i + 1; ii < fileLength; ii++)
+			{
+				// Ending of a section with "--"
+				if (fileText[ii] == '-' && fileText[ii + 1] == '-')
+				{
+					trueAnomaly = std::stod(numberS);
+
+					buffer.clear();
+
+					numberS.clear();
+
+					i = ii - 1;
+
+					break;
+				}
+
+				numberS += fileText[ii];
+			}
+		}
+
 		if (buffer == "---")
 		{
 			if (parent != "Null")
 			{
-				for (int i = 0; i < _celestialBodies.size(); i++)
+				auto it = _celestialBodiesMap.find(parent);
+		        if (it != _celestialBodiesMap.end())
+		        {
+						pos += it->second->position;
+						vel += it->second->velocity;
+				}
+			}
+
+			if (celestialBody)
+			{
+				auto it = _celestialBodiesMap.find(name);
+	        	if (it != _celestialBodiesMap.end())
+	        	{
+	        		it->second->position = pos;
+	        		it->second->velocity = vel;
+
+	        		it->second->semiMajorAxis = semiMajorAxis;
+	        		it->second->eccentricity = eccentricity;
+	        		it->second->inclination = inclination;
+	        		it->second->argumentOfPeriapsis = argumentOfPeriapsis;
+	        		it->second->longitudeAscendingNode = longitudeAscendingNode;
+	        		it->second->trueAnomaly = trueAnomaly;
+	        	}
+
+				else
 				{
-					if (_celestialBodies[i]->name == parent)
+					CelestialBody body(name, pos, vel, mass, radius);
+
+					if (parent != "Null")
 					{
-						pos += _celestialBodies[i]->position;
-						vel += _celestialBodies[i]->velocity;
-						break;
+						auto it = _celestialBodiesMap.find(parent);
+		        		if (it != _celestialBodiesMap.end())
+		        		{
+		        			body.parent = it->second;
+		        		}
+					}
+
+					CelestialBody* ptr = AddCelestialBody(body);
+
+					if (semiMajorAxis > 0)
+					{
+						ptr->semiMajorAxis = semiMajorAxis;
+		        		ptr->eccentricity = eccentricity;
+		        		ptr->inclination = inclination;
+		        		ptr->argumentOfPeriapsis = argumentOfPeriapsis;
+		        		ptr->longitudeAscendingNode = longitudeAscendingNode;
+		        		ptr->trueAnomaly = trueAnomaly;
+					}
+					else
+					{
+						CalculateOrbitalParamaters(ptr);
 					}
 				}
 			}
 
-			OrbitalBody body(name, CelestialBody, pos, vel, mass, radius);
-			body.parent = parent;
- 			AddBody(body);
+			else
+			{
+				auto it = _orbitalBodiesMap.find(name);
+	        	if (it != _orbitalBodiesMap.end())
+	        	{
+	        		if (auto ptr = it->second.lock())
+	        		{
+		        		ptr->position = pos;
+		        		ptr->velocity = vel;
+		        	}
+		        }
+
+				else
+				{
+					OrbitalBody body(name, pos, vel, mass);
+
+					if (parent != "Null")
+					{
+						auto it = _celestialBodiesMap.find(parent);
+		        		if (it != _celestialBodiesMap.end())
+		        		{
+		        			body.parent = it->second;
+		        		}
+					}
+
+					AddOrbitalBody(body);
+				}
+			}
 
 	 		name.clear();
 	 		parent.clear();
 	 		buffer.clear();
-		}
+
+	 		pos = Vector3dZero();
+			vel = Vector3dZero();
+
+			mass = 0;
+			radius = 0;
+
+			semiMajorAxis = 0;
+		    eccentricity = 0;
+		    inclination = 0;
+		    argumentOfPeriapsis = 0;
+		    longitudeAscendingNode = 0;
+		    trueAnomaly = 0;
+	 	}
 	}
 
 	_simTime = DateToSeconds(date, epoch);

@@ -11,10 +11,11 @@ Game::Game(int width, int height, const std::string title)
 {
 	// Set window flags and create window
 	SetConfigFlags(FLAG_MSAA_4X_HINT);
-	SetWindowState( FLAG_VSYNC_HINT | FLAG_WINDOW_ALWAYS_RUN);
+	SetWindowState(FLAG_WINDOW_ALWAYS_RUN);
 	
 	InitWindow(width, height, title.c_str());
 	SetExitKey(KEY_NULL);
+	SetTargetFPS(30);
 	
 	Init();
 	AddSelfAsListener();

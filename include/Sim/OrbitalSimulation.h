@@ -6,31 +6,52 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include <unordered_map>
-#include <unordered_set>
-#include <atomic>
+#include <deque>
 #include <thread>
+#include <unordered_map>
 
 class Services;
+
+class CelestialBody
+{
+public:
+
+	std::string name;
+
+	Vector3d position;
+	Vector3d velocity;
+
+	CelestialBody* parent = nullptr;
+
+	double mass;
+	double radius;
+
+	double semiMajorAxis;
+    double eccentricity;
+    double inclination;
+    double argumentOfPeriapsis;
+    double longitudeAscendingNode;
+    double trueAnomaly;
+
+    CelestialBody(const std::string& nameIn, const Vector3d& positionIn, const Vector3d& velocityIn, const double& massIn, const double& radiusIn) : name(nameIn), position(positionIn), velocity(velocityIn), mass(massIn), radius(radiusIn) {}
+};
 
 class OrbitalBody
 {
 public:
 
 	std::string name;
-	bool celestialBody;
 
 	Vector3d position;
 	Vector3d velocity;
 
-	std::string parent = "Null";
+	CelestialBody* parent = nullptr;
 
 	Vector3d thrust = Vector3dZero();
 
 	double mass;
-	float radius;
 
-	OrbitalBody(const std::string& nameIn, const bool& celestialBodyIn, const Vector3d& positionIn, const Vector3d& velocityIn, const double& massIn, const float& radiusIn) : name(nameIn), celestialBody(celestialBodyIn), position(positionIn), velocity(velocityIn), mass(massIn), radius(radiusIn) {}
+	OrbitalBody(const std::string& nameIn, const Vector3d& positionIn, const Vector3d& velocityIn, const double& massIn) : name(nameIn), position(positionIn), velocity(velocityIn), mass(massIn) {}
 };
 
 class OrbitalSimulation : public EventListener
@@ -40,18 +61,14 @@ private:
 	// Ptr of global services
 	Services* _services;
 
-	std::vector<std::shared_ptr<OrbitalBody>> _celestialBodies;
-	std::vector<std::shared_ptr<OrbitalBody>> _nonCelestialBodies;
+	std::deque<CelestialBody> _celestialBodies;
+	std::unordered_map<std::string, CelestialBody*> _celestialBodiesMap;
 
-	std::unordered_set<std::string> _celestialBodiesNames;
-	std::unordered_set<std::string> _nonCelestialBodiesNames;
+	std::deque<std::shared_ptr<OrbitalBody>> _orbitalBodies;
+	std::unordered_map<std::string, std::weak_ptr<OrbitalBody>> _orbitalBodiesMap;
 
 	// Threads
 	std::vector<std::thread> _threads;
-	std::atomic<int> _threadNumber = 4;
-
-	std::atomic<int> _done = _threadNumber * 2;
-	std::atomic<int> _ready = 0;
 
 	double _dt;
 	unsigned int _speed;
@@ -64,10 +81,13 @@ private:
 
 	// Calculate acceleration and then numerically integrate
 	inline Vector3d CalculateAcceleration(const Vector3d& r, const double& M) const;
-	Vector3d CalculateTotalAcceleration(const Vector3d& position, OrbitalBody& body, const std::vector<OrbitalBody>& bodies) const;
-	void RungeKutta(OrbitalBody& body, const std::vector<OrbitalBody>& bodies, const double& h);
+	Vector3d CalculateTotalAcceleration(const Vector3d& position, OrbitalBody& body, std::deque<CelestialBody>& bodies);
+	void RungeKutta(OrbitalBody& body, std::deque<CelestialBody>& bodies, const double& h);
 
-	void UpdateOrbits(std::vector<OrbitalBody>& bodies, std::vector<OrbitalBody>& celestialBodies, const std::atomic<double>& dt, const std::atomic<int>& steps, std::atomic<int>& done,  std::atomic<int>& ready, std::atomic<bool>& start);
+	void CalculateOrbitalParamaters(CelestialBody* body);
+
+	void UpdateCelestialBody(std::deque<CelestialBody>& bodies, const double dt);
+	void UpdateOrbitalBody(std::deque<std::shared_ptr<OrbitalBody>>& bodies, std::deque<CelestialBody>& celestialBodies, const double dt);
 
 public:
 
@@ -78,12 +98,17 @@ public:
 
 	void ResetThreads();
 
-	std::weak_ptr<OrbitalBody> AddBody(OrbitalBody& body);
-	bool RemoveBody(std::weak_ptr<OrbitalBody> bodyPtr);
+	// Add and remove bodies
+	CelestialBody* AddCelestialBody(const CelestialBody& body);
+	std::weak_ptr<OrbitalBody> AddOrbitalBody(const OrbitalBody& body);
+	bool RemoveOrbitalBody(std::weak_ptr<OrbitalBody>& bodyPtr);
 
-	// Get current bodies ptrs
-	std::unordered_map<std::string, std::weak_ptr<OrbitalBody>> GetBodies(const bool& celestialBody);
-	std::vector<std::weak_ptr<OrbitalBody>> GetBodiesV(const bool& celestialBody);
+	// Get bodies
+	std::vector<CelestialBody*> GetCelestialBodies();
+	std::unordered_map<std::string, CelestialBody*> GetCelestialBodiesMap();
+
+	std::vector<std::weak_ptr<OrbitalBody>> GetOrbitalBodies();
+	std::unordered_map<std::string, std::weak_ptr<OrbitalBody>> GetOrbitalBodiesMap();
 
 	// Get time since sim start in s
 	double GetTime() const;

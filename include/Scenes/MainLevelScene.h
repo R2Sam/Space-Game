@@ -12,6 +12,7 @@
 
 class Services;
 
+class CelestialBody;
 class OrbitalBody;
 
 class Screen;
@@ -40,11 +41,12 @@ private:
 	// Tiles
 	Tile _bodyTile;
 	Tile _sunTile;
+	Tile _moonTile;
 	Tile _craftTile;
 	Tile _mapTile;
 
 	// Bodies
-	std::vector<std::weak_ptr<OrbitalBody>> _planets;
+	std::vector<CelestialBody*> _planets;
 	std::vector<std::weak_ptr<OrbitalBody>> _craft;
 
 	void Init() override;

@@ -305,3 +305,50 @@ std::string SecondsToDate(double seconds, const std::tm& epoch)
 
     return oss.str();
 }
+
+void ThreadSync(std::atomic<bool>& start, std::atomic<int>& ready, std::atomic<int>& done, const int& threadNumber)
+{
+    while (done.load(std::memory_order_acquire) != 0)
+    {
+        done.wait(threadNumber);
+    }
+
+    ready.fetch_add(1, std::memory_order_release);
+    ready.notify_all();
+
+    while (!start.load(std::memory_order_acquire))
+    {
+        start.wait(false);
+    }
+}
+
+void ThreadDone(std::atomic<int>& done)
+{
+    done.fetch_add(1, std::memory_order_release);
+    done.notify_all();
+}
+
+void WaitForThreads(std::atomic<bool>& start, std::atomic<int>& ready, std::atomic<int>& done, const int& threadNumber)
+{
+    start.store(false, std::memory_order_release);
+    start.notify_all();
+
+    ready.store(0, std::memory_order_release);
+    ready.notify_all();
+
+    done.store(0, std::memory_order_release);
+    done.notify_all();
+
+    while (ready.load(std::memory_order_acquire) < threadNumber)
+    {
+        ready.wait(0);
+    }
+
+    start.store(true, std::memory_order_release);
+    start.notify_all();
+    
+    while (done.load(std::memory_order_acquire) < threadNumber)
+    {
+        done.wait(0);
+    }
+}
