@@ -82,12 +82,15 @@ void MainLevelScene::GetInputs()
 void MainLevelScene::UpdateMap()
 {
 	_planets = _services->GetGameStateHandler()->orbitalSimulation->GetCelestialBodies();
+	_planetsMap = _services->GetGameStateHandler()->orbitalSimulation->GetCelestialBodiesMap();
+
 	_craft = _services->GetGameStateHandler()->orbitalSimulation->GetOrbitalBodies();
+	_craftMap = _services->GetGameStateHandler()->orbitalSimulation->GetOrbitalBodiesMap();
 }
 
 void MainLevelScene::DrawMap()
 {
-	static const float scaleFactor = 4.0e-08;
+	static float scaleFactor = 0.0025;
 
 	Vector2 screenSize = _services->GetGameStateHandler()->screen->GetScreenSize();
 	Screen& screen = *_services->GetGameStateHandler()->screen;
@@ -96,7 +99,8 @@ void MainLevelScene::DrawMap()
 
 	const static Rectangle rec = CenteredRectangle(Rectangle {0, 0, 32, 32}, center);
 
-	//DrawRectangleTile(screen, rec, _mapTile);
+	Vector3d focus = _planetsMap["Earth"]->position;
+
 	screen.Reset();
 
 	for (std::weak_ptr<OrbitalBody>& ptr : _craft)
@@ -108,7 +112,7 @@ void MainLevelScene::DrawMap()
 			continue;
 		}
 
-		Vector3d v = body->position * scaleFactor;
+		Vector3d v = (body->position - focus) * scaleFactor;
 
 		Vector2 pos = {std::round(v.x + center.x), std::round(-v.z + center.y)};
 
@@ -117,7 +121,7 @@ void MainLevelScene::DrawMap()
 
 	for (CelestialBody* body : _planets)
 	{
-		Vector3d v = body->position * scaleFactor;
+		Vector3d v = (body->position - focus) * scaleFactor;
 
 		Vector2 pos = {std::round(v.x + center.x), std::round(-v.z + center.y)};
 
@@ -162,24 +166,33 @@ void MainLevelScene::DrawMap()
 	}
 
 	DrawTextTile(screen, Vector2{0, 0}, "Date:" + _services->GetGameStateHandler()->orbitalSimulation->GetDate(), BLACK, LIGHTGRAY);
-	DrawTextTile(screen, Vector2{0, 1}, "FPS:" + std::to_string(GetFPS()), BLACK, LIGHTGRAY);
+	DrawTextTile(screen, Vector2{0, 1}, "Speed:" + std::to_string(_services->GetGameStateHandler()->orbitalSimulation->GetSpeed()), BLACK, LIGHTGRAY);
+	DrawTextTile(screen, Vector2{0, 2}, "FPS:" + std::to_string(GetFPS()), BLACK, LIGHTGRAY);
+
+	///*
+	std::shared_ptr<OrbitalBody> craft = _craftMap["ISS"].lock();
+	//CelestialBody* craft = _planetsMap["ISS"];
+
+	Vector3d position = craft->position - craft->parent->position;
+	Vector3d velocity = craft->velocity - craft->parent->velocity;
+	double mu = craft->parent->mass * 6.67430e-20;
+	Vector3d h = position.cross(velocity);
+	Vector3d e = ((velocity.cross(h) / mu) - position.normalize());
+
+	DrawTextTile(screen, Vector2{0, 3}, "ISS Parent:" + craft->parent->name , BLACK, LIGHTGRAY);
+	DrawTextTile(screen, Vector2{0, 4}, "ISS Height:" + DoubleToRoundedString(craft->position.distance(craft->parent->position) - craft->parent->radius, 0) + " km" , BLACK, LIGHTGRAY);
+	DrawTextTile(screen, Vector2{0, 5}, "ISS Speed:" + DoubleToRoundedString(velocity.length(), 2) + " km/s" , BLACK, LIGHTGRAY);
+	DrawTextTile(screen, Vector2{0, 6}, "ISS Eccentricity:" + DoubleToRoundedString(e.length(), 4) , BLACK, LIGHTGRAY);
+	//*/
 }
 
 void MainLevelScene::Enter()
 {
 	_active = true;
 
-	if (FileExists("../data/Bodies-Save.txt"))
-	{
-		_services->GetGameStateHandler()->orbitalSimulation->LoadBodiesFromFile("../data/Bodies-Save.txt");
-	}
+	_services->GetGameStateHandler()->orbitalSimulation->LoadBodiesFromFile("../data/Bodies.txt");
 
-	else
-	{
-		_services->GetGameStateHandler()->orbitalSimulation->LoadBodiesFromFile("../data/Bodies.txt");
-	}
-
-	_services->GetGameStateHandler()->orbitalSimulation->SetSpeed(100e3);
+	_services->GetGameStateHandler()->orbitalSimulation->SetSpeed(100e-1);
 }
 
 void MainLevelScene::Exit()

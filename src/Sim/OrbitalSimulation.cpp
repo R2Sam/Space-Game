@@ -81,9 +81,10 @@ Vector3d OrbitalSimulation::CalculateTotalAcceleration(const Vector3d& position,
 			Vector3d r = position - celestialBody.position;
 
 			Vector3d v = CalculateAcceleration(r, celestialBody.mass);
+			float strength = v.length();
+
 			acceleration += v;
 
-			float strength = v.length();
 			if (topForce.first < strength && body.mass < celestialBody.mass)
 			{
 				topForce.first = strength;
@@ -99,43 +100,43 @@ Vector3d OrbitalSimulation::CalculateTotalAcceleration(const Vector3d& position,
 
 void OrbitalSimulation::RungeKutta(OrbitalBody& body, std::deque<CelestialBody>& bodies, const double& h)
 {
-    Vector3d k1v, k2v, k3v, k4v;
-    Vector3d k1r, k2r, k3r, k4r;
-    double halfH = h / 2;
-    double sixthH = h / 6;
+	Vector3d k1r, k2r, k3r, k4r;
+	Vector3d k1v, k2v, k3v, k4v;
+	double halfH = h / 2.0;
+	double sixthH = h / 6.0;
 
-    k1v = CalculateTotalAcceleration(body.position, body, bodies);
-    k1r = body.velocity;
+	k1r = body.velocity;
+	k1v = CalculateTotalAcceleration(body.position, body, bodies);
 
-    k2v = CalculateTotalAcceleration(body.position + (k1r * halfH), body, bodies);
-    k2r = body.velocity + (k1v * halfH);
+	k2r = body.velocity + k1v * halfH;
+	k2v = CalculateTotalAcceleration(body.position + k1r * halfH, body, bodies);
 
-    k3v = CalculateTotalAcceleration(body.position + (k2r * halfH), body, bodies);
-    k3r = body.velocity + (k2v * halfH);
+	k3r = body.velocity + k2v * halfH;
+	k3v = CalculateTotalAcceleration(body.position + k2r * halfH, body, bodies);
 
-    k4v = CalculateTotalAcceleration(body.position + (k3r * h), body, bodies);
-    k4r = body.velocity + (k3v * h);
+	k4r = body.velocity + k3v * h;
+	k4v = CalculateTotalAcceleration(body.position + k3r * h, body, bodies);
 
-    body.position += (k1r + 2 * k2r + 2 * k3r + k4r) * sixthH;
-    body.velocity += (k1v + 2 * k2v + 2 * k3v + k4v) * sixthH;
+	body.position += (k1r + 2.0 * k2r + 2.0 * k3r + k4r) * sixthH;
+	body.velocity += (k1v + 2.0 * k2v + 2.0 * k3v + k4v) * sixthH;
 
-    if (body.thrust != Vector3dZero())
-    {
-    	Vector3d thrust = body.thrust;
+	if (body.thrust != Vector3dZero())
+	{
+		Vector3d thrust = body.thrust;
 
-    	if (_km)
-    	{
-    		thrust *= 0.001; 
-    	}
+		if (_km)
+		{
+			thrust *= 0.001; 
+		}
 
-    	body.position += (thrust / body.mass) * h;
-    	body.velocity += (thrust / body.mass) * h;
-    }
+		body.position += (thrust / body.mass) * h;
+		body.velocity += (thrust / body.mass) * h;
+	}
 }
 
 void OrbitalSimulation::CalculateOrbitalParamaters(CelestialBody* body)
 {
-	if (body->parent)
+	if (body->parent && body->velocity.length() > 0)
 	{
 		Vector3d position = body->position - body->parent->position;
 		Vector3d velocity = body->velocity - body->parent->velocity;
@@ -147,124 +148,130 @@ void OrbitalSimulation::CalculateOrbitalParamaters(CelestialBody* body)
 			mu = GKm * body->parent->mass;
 		}
 
-	    Vector3d h = position.cross(velocity);
-	    double h_mag = h.length();
+		Vector3d h = position.cross(velocity);
+		double h_mag = h.length();
 
-	    Vector3d e = ((velocity.cross(h) / mu) - position.normalize());
-	    double e_mag = e.length();
-	    body->eccentricity = e_mag;
+		Vector3d e = ((velocity.cross(h) / mu) - position.normalize());
+		double e_mag = e.length();
+		body->eccentricity = e_mag;
 
-	    double en = ((velocity.length() * velocity.length()) / 2.0) - (mu / position.length());
-	    body->semiMajorAxis = -(mu / (2.0 * en));
+		double en = ((velocity.length() * velocity.length()) / 2.0) - (mu / position.length());
+		body->semiMajorAxis = -(mu / (2.0 * en));
 
-	    body->inclination = std::acos(h.z / h_mag);
+		body->inclination = std::acos(h.z / h_mag);
 
-	    Vector3d n = {-h.y, h.x, 0};
-	    double n_mag = n.length();
+		Vector3d n = {-h.y, h.x, 0};
+		double n_mag = n.length();
 
-	    body->longitudeAscendingNode = std::atan2(n.y, n.x);
-	    if (body->longitudeAscendingNode < 0)
-	    {
-	        body->longitudeAscendingNode += 2.0 * PI;
-	    }
-	    if (body->longitudeAscendingNode >= 2.0 * PI)
-	    {
-	    	body->longitudeAscendingNode -= 2.0 * PI;
-	    }
-
-	    body->argumentOfPeriapsis = std::acos(std::clamp(n.dot(e) / (n_mag * body->eccentricity), -1.0, 1.0));
-	    if (e.z < 0)
-	    {
-	        body->argumentOfPeriapsis = 2.0 * PI - body->argumentOfPeriapsis;
-	    }
-
-	    body->trueAnomaly = std::acos(std::clamp(e.dot(position) / (body->eccentricity * position.length()), -1.0, 1.0));
-	    if (position.dot(velocity) < 0)
-	    {
-	        body->trueAnomaly = 2.0 * PI - body->trueAnomaly;
-	    }
-
-	    Log(body->name << " " << body->semiMajorAxis << " " << body->eccentricity << " " << body->inclination << " " << body->argumentOfPeriapsis << " " << body->longitudeAscendingNode << " " << body->trueAnomaly);
-	}
-}
-
-void OrbitalSimulation::UpdateCelestialBody(std::deque<CelestialBody>& bodies, const double dt)
-{
-	for (CelestialBody& body : bodies)
-	{
-		if (body.parent)
+		body->longitudeAscendingNode = std::atan2(n.y, n.x);
+		if (body->longitudeAscendingNode < 0)
 		{
-		    double mu = G * body.parent->mass;
+			body->longitudeAscendingNode += 2.0 * PI;
+		}
+		if (body->longitudeAscendingNode >= 2.0 * PI)
+		{
+			body->longitudeAscendingNode -= 2.0 * PI;
+		}
 
-		    if (_km)
-		    {
-		    	mu = GKm * body.parent->mass;
-		    }
+		body->argumentOfPeriapsis = std::acos(std::clamp(n.dot(e) / (n_mag * body->eccentricity), -1.0, 1.0));
+		if (e.z < 0)
+		{
+			body->argumentOfPeriapsis = 2.0 * PI - body->argumentOfPeriapsis;
+		}
 
-		    double n = sqrt(mu / pow(body.semiMajorAxis, 3));
-		    double E0 = 2.0 * atan(sqrt((1.0 - body.eccentricity) / (1.0 + body.eccentricity)) * tan(body.trueAnomaly / 2.0));
-			double M0 = E0 - body.eccentricity * sin(E0);
-		    double M = M0 + n * dt;
-		   	if (M > 2.0 * PI)
-		    {
-		    	M -= 2.0 * PI;
-		    }
-
-		    double E = M;
-		    double deltaE = 1e-9;
-		    for (int i = 0; i < 100; i++)
-		    {
-		    	double delta = E - body.eccentricity * sin(E) - M;
-
-		    	if (std::fabs(delta) < deltaE)
-		    	{
-		    		break;
-		    	}
-
-		    	E -= delta / (1.0 - body.eccentricity * cos(E));
-		    }
-
-		    body.trueAnomaly = 2.0 * std::atan2(sqrt(1.0 + body.eccentricity) * sin(E / 2.0), sqrt(1.0 - body.eccentricity) * cos(E / 2.0));
-
-		    double r = body.semiMajorAxis * (1.0 - body.eccentricity * body.eccentricity) / (1.0 + body.eccentricity * cos(body.trueAnomaly));
-		    double x_orbital = r * cos(body.trueAnomaly);
-		    double y_orbital = r * sin(body.trueAnomaly);
-
-		    double cosOmega = cos(body.longitudeAscendingNode);
-		    double sinOmega = sin(body.longitudeAscendingNode);
-		    double cosi = cos(body.inclination);
-		    double sini = sin(body.inclination);
-		    double cosw = cos(body.argumentOfPeriapsis);
-		    double sinw = sin(body.argumentOfPeriapsis);
-
-		    Vector3d position = body.parent->position;
-
-		    position.x += (cosOmega * cosw - sinOmega * sinw * cosi) * x_orbital + (-cosOmega * sinw - sinOmega * cosw * cosi) * y_orbital;
-		    position.y += (sinOmega * cosw + cosOmega * sinw * cosi) * x_orbital + (-sinOmega * sinw + cosOmega * cosw * cosi) * y_orbital;
-		    position.z += (sinw * sini) * x_orbital + (cosw * sini) * y_orbital;
-
-		    body.position = position;
-
-		    double v = sqrt(mu * (2.0 / r - 1.0 / body.semiMajorAxis));
-		    double h = sqrt(mu * body.semiMajorAxis * (1.0 - body.eccentricity * body.eccentricity));
-
-		    Vector3d orbitalVelocity = {-v * sin(body.trueAnomaly), v * (body.eccentricity + cos(body.trueAnomaly)), 0.0};
-
-		    Vector3d rotatedOrbitalVelocity = {orbitalVelocity.x * cosw - orbitalVelocity.y * sinw, orbitalVelocity.x * sinw + orbitalVelocity.y * cosw, orbitalVelocity.z};
-		    Vector3d rotatedInclinedVelocity = {rotatedOrbitalVelocity.x, rotatedOrbitalVelocity.y * cosi - rotatedOrbitalVelocity.z * sini, rotatedOrbitalVelocity.y * sini + rotatedOrbitalVelocity.z * cosi};
-
-		    Vector3d velocity = body.parent->velocity;
-
-		    velocity.x += rotatedInclinedVelocity.x * cosOmega - rotatedInclinedVelocity.y * sinOmega;
-		    velocity.y += rotatedInclinedVelocity.x * sinOmega + rotatedInclinedVelocity.y * cosOmega;
-    		velocity.z += rotatedInclinedVelocity.z;
-
-		    body.velocity = velocity;
-	    }
+		body->trueAnomaly = std::acos(std::clamp(e.dot(position) / (body->eccentricity * position.length()), -1.0, 1.0));
+		if (position.dot(velocity) < 0)
+		{
+			body->trueAnomaly = 2.0 * PI - body->trueAnomaly;
+		}
 	}
 }
 
-void OrbitalSimulation::UpdateOrbitalBody(std::deque<std::shared_ptr<OrbitalBody>>& bodies, std::deque<CelestialBody>& celestialBodies, const double dt)
+void OrbitalSimulation::UpdateCelestialBodies(std::deque<CelestialBody>& bodies, const double dt)
+{
+	std::deque<CelestialBody> currentBodies = bodies;
+
+	for (CelestialBody& body : currentBodies)
+	{
+		if (body.parent && body.velocity.length() > 0)
+		{
+			double mu = G * body.parent->mass;
+
+			if (_km)
+			{
+				mu = GKm * body.parent->mass;
+			}
+
+			double n = sqrt(mu / pow(body.semiMajorAxis, 3));
+			double E0 = 2.0 * atan(sqrt((1.0 - body.eccentricity) / (1.0 + body.eccentricity)) * tan(body.trueAnomaly / 2.0));
+			double M0 = E0 - body.eccentricity * sin(E0);
+			double M = M0 + n * dt;
+			if (M > 2.0 * PI)
+			{
+				M -= 2.0 * PI;
+			}
+
+			double E = M;
+			double deltaE = 1e-9;
+			for (int i = 0; i < 100; i++)
+			{
+				double delta = E - body.eccentricity * sin(E) - M;
+
+				if (std::fabs(delta) < deltaE)
+				{
+					break;
+				}
+
+				E -= delta / (1.0 - body.eccentricity * cos(E));
+			}
+
+			body.trueAnomaly = 2.0 * std::atan2(sqrt(1.0 + body.eccentricity) * sin(E / 2.0), sqrt(1.0 - body.eccentricity) * cos(E / 2.0));
+
+			double r = body.semiMajorAxis * (1.0 - body.eccentricity * body.eccentricity) / (1.0 + body.eccentricity * cos(body.trueAnomaly));
+			double x_orbital = r * cos(body.trueAnomaly);
+			double y_orbital = r * sin(body.trueAnomaly);
+
+			double cosOmega = cos(body.longitudeAscendingNode);
+			double sinOmega = sin(body.longitudeAscendingNode);
+			double cosi = cos(body.inclination);
+			double sini = sin(body.inclination);
+			double cosw = cos(body.argumentOfPeriapsis);
+			double sinw = sin(body.argumentOfPeriapsis);
+
+			Vector3d position = body.parent->position;
+
+			position.x += (cosOmega * cosw - sinOmega * sinw * cosi) * x_orbital + (-cosOmega * sinw - sinOmega * cosw * cosi) * y_orbital;
+			position.y += (sinOmega * cosw + cosOmega * sinw * cosi) * x_orbital + (-sinOmega * sinw + cosOmega * cosw * cosi) * y_orbital;
+			position.z += (sinw * sini) * x_orbital + (cosw * sini) * y_orbital;
+
+			body.position = position;
+
+			double v = sqrt(mu * (2.0 / r - 1.0 / body.semiMajorAxis));
+
+			Vector3d orbitalVelocity = {-v * sin(body.trueAnomaly), v * (body.eccentricity + cos(body.trueAnomaly)), 0.0};
+
+			Vector3d rotatedOrbitalVelocity = {orbitalVelocity.x * cosw - orbitalVelocity.y * sinw, orbitalVelocity.x * sinw + orbitalVelocity.y * cosw, orbitalVelocity.z};
+			Vector3d rotatedInclinedVelocity = {rotatedOrbitalVelocity.x, rotatedOrbitalVelocity.y * cosi - rotatedOrbitalVelocity.z * sini, rotatedOrbitalVelocity.y * sini + rotatedOrbitalVelocity.z * cosi};
+
+			Vector3d velocity = body.parent->velocity;
+
+			velocity.x += rotatedInclinedVelocity.x * cosOmega - rotatedInclinedVelocity.y * sinOmega;
+			velocity.y += rotatedInclinedVelocity.x * sinOmega + rotatedInclinedVelocity.y * cosOmega;
+			velocity.z += rotatedInclinedVelocity.z;
+
+			body.velocity = velocity;
+		}
+
+		else
+		{
+			body.position += body.velocity * dt;
+		}
+	}
+
+	bodies = currentBodies;
+}
+
+void OrbitalSimulation::UpdateOrbitalBodies(std::deque<std::shared_ptr<OrbitalBody>>& bodies, std::deque<CelestialBody>& celestialBodies, const double dt)
 {
 	for (std::shared_ptr<OrbitalBody>& body : bodies)
 	{
@@ -303,7 +310,7 @@ void OrbitalSimulation::Update()
 
 	// If bellow 1 lower timestep so that one update is needed
 	if (updates < 1)
-	{	
+	{   
 		dt *= updates;
 		updates = (1 / (dt * fps)) * _speed;
 	}
@@ -319,15 +326,11 @@ void OrbitalSimulation::Update()
 		}
 	}
 
-	std::deque<CelestialBody> celestialBodies = _celestialBodies;
-
 	for (int i = 0; i < updates; i++)
 	{
-		UpdateOrbitalBody(_orbitalBodies, _celestialBodies, dt);
-		UpdateCelestialBody(celestialBodies, dt);
+		UpdateOrbitalBodies(_orbitalBodies, _celestialBodies, dt);
+		UpdateCelestialBodies(_celestialBodies, dt);
 	}
-
-	_celestialBodies = celestialBodies;
 
 	_simTime += dt * updates;
 }
@@ -521,142 +524,143 @@ void OrbitalSimulation::SetKm(const bool& km)
 
 bool OrbitalSimulation::SaveBodiesToFile(const std::string& path)
 {
-    std::string output;
+	std::string output;
 
-    output += "--Date:" + SecondsToDate(_simTime, epoch) + "\n";
+	output += "--Date:" + SecondsToDate(_simTime, epoch) + "\n";
 
-    output += "--CelestialBodies\n";
+	output += "--CelestialBodies\n";
 
-    for (const CelestialBody& body : _celestialBodies)
-    {
-        output += "--Name:" + body.name;
+	for (const CelestialBody& body : _celestialBodies)
+	{
+		output += "--Name:" + body.name;
 
-        output += "--Parent:";
+		output += "--Parent:";
 
-        bool parent = false;
-        if (body.parent)
-        {
-	        auto it = _celestialBodiesMap.find(body.parent->name);
-	        if (it != _celestialBodiesMap.end())
-	        {
-	        	output += body.parent->name;
-	        	parent = true;
-	        }
-	    }
+		bool parent = false;
+		if (body.parent)
+		{
+			auto it = _celestialBodiesMap.find(body.parent->name);
+			if (it != _celestialBodiesMap.end())
+			{
+				output += body.parent->name;
+				parent = true;
+			}
+		}
 		
 		if (!parent)
-        {
-        	output += "Null";
-        }
-        
-        Vector3d pos = body.position;
-        output += "--Position:";
+		{
+			output += "Null";
+		}
+		
+		Vector3d pos = body.position;
+		output += "--Position:";
 
-        if (parent)
-        {
-	        auto it = _celestialBodiesMap.find(body.parent->name);
-	        if (it != _celestialBodiesMap.end())
+		if (parent)
+		{
+			auto it = _celestialBodiesMap.find(body.parent->name);
+			if (it != _celestialBodiesMap.end())
 			{
 				pos -= it->second->position;
 			}
 		}
 
-        output += DoubleToRoundedString(pos.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.z, std::numeric_limits<double>::max_digits10);
+		output += DoubleToRoundedString(pos.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.z, std::numeric_limits<double>::max_digits10);
  
- 		Vector3d vel = body.velocity;       
-        output += "--Velocity:";
+		Vector3d vel = body.velocity;       
+		output += "--Velocity:";
 
-        if (parent)
-        {
-	        auto it = _celestialBodiesMap.find(body.parent->name);
-	        if (it != _celestialBodiesMap.end())
+		if (parent)
+		{
+			auto it = _celestialBodiesMap.find(body.parent->name);
+			if (it != _celestialBodiesMap.end())
 			{
 				vel -= it->second->velocity;
 			}
 		}
 
-        output += DoubleToRoundedString(vel.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.z, std::numeric_limits<double>::max_digits10);
-        
-        output += "--Mass:" + DoubleToRoundedString(body.mass, std::numeric_limits<double>::max_digits10);
-        
-        output += "--Radius:" + DoubleToRoundedString(body.radius, std::numeric_limits<double>::max_digits10);
+		output += DoubleToRoundedString(vel.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.z, std::numeric_limits<double>::max_digits10);
+		
+		output += "--Mass:" + DoubleToRoundedString(body.mass, std::numeric_limits<double>::max_digits10);
+		
+		output += "--Radius:" + DoubleToRoundedString(body.radius, std::numeric_limits<double>::max_digits10);
 
-        output += "--SemiMajorAxis:" +  DoubleToRoundedString(body.semiMajorAxis, std::numeric_limits<double>::max_digits10);
+		output += "--SemiMajorAxis:" +  DoubleToRoundedString(body.semiMajorAxis, std::numeric_limits<double>::max_digits10);
 
-        output += "--Eccentricity:" +  DoubleToRoundedString(body.eccentricity, std::numeric_limits<double>::max_digits10);
+		output += "--Eccentricity:" +  DoubleToRoundedString(body.eccentricity, std::numeric_limits<double>::max_digits10);
 
-        output += "--Inclination:" +  DoubleToRoundedString(body.inclination, std::numeric_limits<double>::max_digits10);
+		output += "--Inclination:" +  DoubleToRoundedString(body.inclination, std::numeric_limits<double>::max_digits10);
 
-        output += "--ArgumentOfPeriapsis:" +  DoubleToRoundedString(body.argumentOfPeriapsis, std::numeric_limits<double>::max_digits10);
+		output += "--ArgumentOfPeriapsis:" +  DoubleToRoundedString(body.argumentOfPeriapsis, std::numeric_limits<double>::max_digits10);
 
-        output += "--LongitudeAscendingNode:" +  DoubleToRoundedString(body.longitudeAscendingNode, std::numeric_limits<double>::max_digits10);
+		output += "--LongitudeAscendingNode:" +  DoubleToRoundedString(body.longitudeAscendingNode, std::numeric_limits<double>::max_digits10);
 
-        output += "--TrueAnomaly:" +  DoubleToRoundedString(body.trueAnomaly, std::numeric_limits<double>::max_digits10);
-        
-        output += "---\n";
-    }
+		output += "--TrueAnomaly:" +  DoubleToRoundedString(body.trueAnomaly, std::numeric_limits<double>::max_digits10);
+		
+		output += "---\n";
+	}
 
-    output += "--OrbitalBodies\n";
+	output += "--OrbitalBodies\n";
 
-    for (const std::shared_ptr<OrbitalBody>& body : _orbitalBodies)
-    {
-        output += "--Name:" + body->name;
+	for (const std::shared_ptr<OrbitalBody>& body : _orbitalBodies)
+	{
+		output += "--Name:" + body->name;
 
-        output += "--Parent:";
+		output += "--Parent:";
 
-        bool parent = false;
-        if (body->parent)
-        {
-	        auto it = _celestialBodiesMap.find(body->parent->name);
-	        if (it != _celestialBodiesMap.end())
-	        {
-	        	output += body->parent->name;
-	        	parent = true;
-	        }
-	    }
+		bool parent = false;
+		if (body->parent)
+		{
+			auto it = _celestialBodiesMap.find(body->parent->name);
+			if (it != _celestialBodiesMap.end())
+			{
+				output += body->parent->name;
+				parent = true;
+			}
+		}
 
-        if(!parent)
-        {
-        	output += "Null";
-        }
-        
-       	Vector3d pos = body->position;
-        output += "--Position:";
+		if(!parent)
+		{
+			output += "Null";
+		}
+		
+		Vector3d pos = body->position;
+		output += "--Position:";
 
-        if (parent)
-        {
-	        auto it = _celestialBodiesMap.find(body->parent->name);
-	        if (it != _celestialBodiesMap.end())
+		if (parent)
+		{
+			auto it = _celestialBodiesMap.find(body->parent->name);
+			if (it != _celestialBodiesMap.end())
 			{
 				pos -= it->second->position;
+				Log(it->second->name);
 			}
 		}
 
-        output += DoubleToRoundedString(pos.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.z, std::numeric_limits<double>::max_digits10);
+		output += DoubleToRoundedString(pos.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(pos.z, std::numeric_limits<double>::max_digits10);
  
- 		Vector3d vel = body->velocity;       
-        output += "--Velocity:";
+		Vector3d vel = body->velocity;       
+		output += "--Velocity:";
 
-        if (parent)
-        {
-	        auto it = _celestialBodiesMap.find(body->parent->name);
-	        if (it != _celestialBodiesMap.end())
+		if (parent)
+		{
+			auto it = _celestialBodiesMap.find(body->parent->name);
+			if (it != _celestialBodiesMap.end())
 			{
-				vel -= it->second->position;
+				vel -= it->second->velocity;
 			}
 		}
 
-        output += DoubleToRoundedString(vel.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.z, std::numeric_limits<double>::max_digits10);
-        
-        output += "--Mass:" + DoubleToRoundedString(body->mass, std::numeric_limits<double>::max_digits10);
-        
-        output += "---\n";
-    }
+		output += DoubleToRoundedString(vel.x, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.y, std::numeric_limits<double>::max_digits10) + "," + DoubleToRoundedString(vel.z, std::numeric_limits<double>::max_digits10);
+		
+		output += "--Mass:" + DoubleToRoundedString(body->mass, std::numeric_limits<double>::max_digits10);
+		
+		output += "---\n";
+	}
 
-    std::vector<char> writableOutput(output.begin(), output.end());
-    writableOutput.push_back('\0');
+	std::vector<char> writableOutput(output.begin(), output.end());
+	writableOutput.push_back('\0');
 
-    return SaveFileText(path.c_str(), writableOutput.data());
+	return SaveFileText(path.c_str(), writableOutput.data());
 }
 
 bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
@@ -687,11 +691,11 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 	double radius = 0;
 
 	double semiMajorAxis = 0;
-    double eccentricity = 0;
-    double inclination = 0;
-    double argumentOfPeriapsis = 0;
-    double longitudeAscendingNode = 0;
-    double trueAnomaly = 0;
+	double eccentricity = 0;
+	double inclination = 0;
+	double argumentOfPeriapsis = 0;
+	double longitudeAscendingNode = 0;
+	double trueAnomaly = 0;
 
 	for (int i = 0; i < fileLength; i++)
 	{
@@ -713,7 +717,7 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 
 					i = ii - 1;
 
-					break;					
+					break;                  
 				}
 
 				date += fileText[ii];
@@ -731,6 +735,7 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 		{
 			buffer.clear();
 
+			UpdateCelestialBodies(_celestialBodies, 0);
 			celestialBody = false;
 		}
 
@@ -745,7 +750,7 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 
 					i = ii - 1;
 
-					break;					
+					break;                  
 				}
 
 				name += fileText[ii];
@@ -764,7 +769,7 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 
 					i = ii - 1;
 
-					break;					
+					break;                  
 				}
 
 				parent += fileText[ii];
@@ -1054,8 +1059,8 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 			if (parent != "Null")
 			{
 				auto it = _celestialBodiesMap.find(parent);
-		        if (it != _celestialBodiesMap.end())
-		        {
+				if (it != _celestialBodiesMap.end())
+				{
 						pos += it->second->position;
 						vel += it->second->velocity;
 				}
@@ -1064,18 +1069,26 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 			if (celestialBody)
 			{
 				auto it = _celestialBodiesMap.find(name);
-	        	if (it != _celestialBodiesMap.end())
-	        	{
-	        		it->second->position = pos;
-	        		it->second->velocity = vel;
+				if (it != _celestialBodiesMap.end())
+				{
+					it->second->position = pos;
+					it->second->velocity = vel;
 
-	        		it->second->semiMajorAxis = semiMajorAxis;
-	        		it->second->eccentricity = eccentricity;
-	        		it->second->inclination = inclination;
-	        		it->second->argumentOfPeriapsis = argumentOfPeriapsis;
-	        		it->second->longitudeAscendingNode = longitudeAscendingNode;
-	        		it->second->trueAnomaly = trueAnomaly;
-	        	}
+					if (semiMajorAxis > 0)
+					{
+						it->second->semiMajorAxis = semiMajorAxis;
+						it->second->eccentricity = eccentricity;
+						it->second->inclination = inclination;
+						it->second->argumentOfPeriapsis = argumentOfPeriapsis;
+						it->second->longitudeAscendingNode = longitudeAscendingNode;
+						it->second->trueAnomaly = trueAnomaly;
+					}
+
+					else
+					{
+						CalculateOrbitalParamaters(it->second);
+					}
+				}
 
 				else
 				{
@@ -1084,10 +1097,10 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 					if (parent != "Null")
 					{
 						auto it = _celestialBodiesMap.find(parent);
-		        		if (it != _celestialBodiesMap.end())
-		        		{
-		        			body.parent = it->second;
-		        		}
+						if (it != _celestialBodiesMap.end())
+						{
+							body.parent = it->second;
+						}
 					}
 
 					CelestialBody* ptr = AddCelestialBody(body);
@@ -1095,11 +1108,11 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 					if (semiMajorAxis > 0)
 					{
 						ptr->semiMajorAxis = semiMajorAxis;
-		        		ptr->eccentricity = eccentricity;
-		        		ptr->inclination = inclination;
-		        		ptr->argumentOfPeriapsis = argumentOfPeriapsis;
-		        		ptr->longitudeAscendingNode = longitudeAscendingNode;
-		        		ptr->trueAnomaly = trueAnomaly;
+						ptr->eccentricity = eccentricity;
+						ptr->inclination = inclination;
+						ptr->argumentOfPeriapsis = argumentOfPeriapsis;
+						ptr->longitudeAscendingNode = longitudeAscendingNode;
+						ptr->trueAnomaly = trueAnomaly;
 					}
 					else
 					{
@@ -1111,14 +1124,14 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 			else
 			{
 				auto it = _orbitalBodiesMap.find(name);
-	        	if (it != _orbitalBodiesMap.end())
-	        	{
-	        		if (auto ptr = it->second.lock())
-	        		{
-		        		ptr->position = pos;
-		        		ptr->velocity = vel;
-		        	}
-		        }
+				if (it != _orbitalBodiesMap.end())
+				{
+					if (auto ptr = it->second.lock())
+					{
+						ptr->position = pos;
+						ptr->velocity = vel;
+					}
+				}
 
 				else
 				{
@@ -1127,33 +1140,33 @@ bool OrbitalSimulation::LoadBodiesFromFile(const std::string& path)
 					if (parent != "Null")
 					{
 						auto it = _celestialBodiesMap.find(parent);
-		        		if (it != _celestialBodiesMap.end())
-		        		{
-		        			body.parent = it->second;
-		        		}
+						if (it != _celestialBodiesMap.end())
+						{
+							body.parent = it->second;
+						}
 					}
 
 					AddOrbitalBody(body);
 				}
 			}
 
-	 		name.clear();
-	 		parent.clear();
-	 		buffer.clear();
+			name.clear();
+			parent.clear();
+			buffer.clear();
 
-	 		pos = Vector3dZero();
+			pos = Vector3dZero();
 			vel = Vector3dZero();
 
 			mass = 0;
 			radius = 0;
 
 			semiMajorAxis = 0;
-		    eccentricity = 0;
-		    inclination = 0;
-		    argumentOfPeriapsis = 0;
-		    longitudeAscendingNode = 0;
-		    trueAnomaly = 0;
-	 	}
+			eccentricity = 0;
+			inclination = 0;
+			argumentOfPeriapsis = 0;
+			longitudeAscendingNode = 0;
+			trueAnomaly = 0;
+		}
 	}
 
 	_simTime = DateToSeconds(date, epoch);

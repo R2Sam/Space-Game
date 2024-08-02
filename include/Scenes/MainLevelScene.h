@@ -48,6 +48,8 @@ private:
 	// Bodies
 	std::vector<CelestialBody*> _planets;
 	std::vector<std::weak_ptr<OrbitalBody>> _craft;
+	std::unordered_map<std::string, CelestialBody*> _planetsMap;
+	std::unordered_map<std::string, std::weak_ptr<OrbitalBody>> _craftMap;
 
 	void Init() override;
 

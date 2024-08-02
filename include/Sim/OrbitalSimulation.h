@@ -86,8 +86,8 @@ private:
 
 	void CalculateOrbitalParamaters(CelestialBody* body);
 
-	void UpdateCelestialBody(std::deque<CelestialBody>& bodies, const double dt);
-	void UpdateOrbitalBody(std::deque<std::shared_ptr<OrbitalBody>>& bodies, std::deque<CelestialBody>& celestialBodies, const double dt);
+	void UpdateCelestialBodies(std::deque<CelestialBody>& bodies, const double dt);
+	void UpdateOrbitalBodies(std::deque<std::shared_ptr<OrbitalBody>>& bodies, std::deque<CelestialBody>& celestialBodies, const double dt);
 
 public:
 

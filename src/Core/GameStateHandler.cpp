@@ -20,7 +20,7 @@ GameStateHandler::~GameStateHandler()
 
 void GameStateHandler::Init()
 {
-	orbitalSimulation = std::make_unique<OrbitalSimulation>(_services, 1, true);
+	orbitalSimulation = std::make_unique<OrbitalSimulation>(_services, 10, true);
 
 	Tile backgroundTile = std::make_pair("█", std::make_pair(LIGHTGRAY, LIGHTGRAY));
 	screen = std::make_unique<Screen>(Rectangle{0, 0, _services->screenWidth, _services->screenHeight}, backgroundTile, "../data/Mx437_IBM_EGA_8x8.ttf", 16);
